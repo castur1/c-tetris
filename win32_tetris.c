@@ -1,12 +1,13 @@
 #include <Windows.h>
+#include "tetris_types.h"
 
-static int g_isRunning;
+static b32 g_isRunning;
 
 static LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
     switch (message) {
         case WM_DESTROY:
         case WM_CLOSE: {
-            g_isRunning = 0;
+            g_isRunning = false;
         } break;
     }
 
@@ -31,7 +32,7 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
         return 1;
     }
 
-    g_isRunning = 1;
+    g_isRunning = true;
     while (g_isRunning) {
         MSG message;
         while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) {

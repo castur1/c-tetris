@@ -141,6 +141,9 @@
   <ItemGroup>
     <ClCompile Include="win32_tetris.c" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="tetris_types.h" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
