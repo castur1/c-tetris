@@ -4,6 +4,8 @@
 
 #include <stdio.h> // Debug
 
+#define ArraySize(arr) (sizeof(arr) / sizeof(*arr))
+
 typedef struct win32_bitmap {
     BITMAPINFO info;
     void* memory;
@@ -18,7 +20,6 @@ typedef struct ivec2 {
 } ivec2;
 
 static b32 g_isRunning;
-static win32_bitmap g_graphicsBuffer; // Does this actually need to be global?
 
 static inline LARGE_INTEGER GetCurrentPerformanceCount(void) {
     LARGE_INTEGER value;
@@ -93,19 +94,79 @@ static void DisplayBitmapInWindow(const win32_bitmap* bitmap, HDC deviceContext,
 }
 #undef ADD_BARS
 
+static void UpdateKeyboardKey(keyboard_key_state* keyState, b32 isDown) {
+    if (keyState->isDown != isDown) {
+        keyState->isDown = isDown;
+        keyState->didChangeState = true;
+    }
+}
+
+ProcessPendingMessages(HWND window, win32_bitmap* bitmapBuffer, keyboard_state* keyboardState) {
+    for (i32 i = 0; i < ArraySize(keyboardState->keys); ++i) {
+        keyboardState->keys[i].didChangeState = false;
+    }
+    keyboardState->mouseLeft.didChangeState  = false;
+    keyboardState->mouseRight.didChangeState = false;
+
+    MSG message;
+    while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) {
+        switch (message.message) {
+            case WM_PAINT: {
+                PAINTSTRUCT paint;
+                HDC deviceContext = BeginPaint(window, &paint);
+                ivec2 windowDimensions = GetWindowDimensions(window);
+                DisplayBitmapInWindow(bitmapBuffer, deviceContext, windowDimensions.x, windowDimensions.y);
+                EndPaint(window, &paint);
+            } break;
+            case WM_KEYDOWN:
+            case WM_KEYUP: {
+                b32 wasDown = (message.lParam & (1 << 30)) != 0;
+                b32 isDown  = (message.lParam & (1 << 31)) == 0;
+
+                b32 altKeyIsDown = false;
+                if (isDown) {
+                    altKeyIsDown = (message.lParam & (1 << 29)) != 0;
+                }
+
+                if (wasDown != isDown) {
+                    switch (message.wParam) {
+                        case VK_ESCAPE: {
+                            g_isRunning = false;
+                        } break;
+                        // Is there a better solution?
+                        case 'W': {
+                            UpdateKeyboardKey(&keyboardState->w, isDown);
+                        } break;
+                        case 'A': {
+                            UpdateKeyboardKey(&keyboardState->a, isDown);
+                        } break;
+                        case 'S': {
+                            UpdateKeyboardKey(&keyboardState->s, isDown);
+                        } break;
+                        case 'D': {
+                            UpdateKeyboardKey(&keyboardState->d, isDown);
+                        } break;
+                    }
+                }
+            } break;
+            case WM_LBUTTONDOWN:
+            case WM_LBUTTONUP: {
+                UpdateKeyboardKey(&keyboardState->mouseLeft, message.wParam & MK_LBUTTON);
+            } break;
+            case WM_RBUTTONDOWN:
+            case WM_RBUTTONUP: {
+                UpdateKeyboardKey(&keyboardState->mouseRight, message.wParam & MK_RBUTTON);
+            } break;
+        }
+
+        TranslateMessage(&message);
+        DispatchMessageA(&message);
+    }
+}
+
 static LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
-    switch (message) {
-        case WM_DESTROY:
-        case WM_CLOSE: {
-            g_isRunning = false;
-        } break;
-        case WM_PAINT: {
-            PAINTSTRUCT paint;
-            HDC deviceContext = BeginPaint(window, &paint);
-            ivec2 windowDimensions = GetWindowDimensions(window);
-            DisplayBitmapInWindow(&g_graphicsBuffer, deviceContext, windowDimensions.x, windowDimensions.y);
-            EndPaint(window, &paint);
-        } break;
+    if (message == WM_CLOSE || message == WM_DESTROY || message == WM_QUIT) {
+        g_isRunning = false;
     }
 
     return DefWindowProc(window, message, wParam, lParam);
@@ -143,7 +204,10 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
     }
     f32 secondsPerFrame = 1.0f / refreshRate;
 
-    InitBitmap(&g_graphicsBuffer, 960, 540);
+    win32_bitmap bitmapBuffer;
+    InitBitmap(&bitmapBuffer, 960, 540);
+
+    keyboard_state keyboardState = { 0 };
 
     OnStartup();
 
@@ -151,24 +215,27 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
     while (g_isRunning) {
         LARGE_INTEGER performanceCountAtStartOfFrame = GetCurrentPerformanceCount();
 
-        MSG message;
-        while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) {
-            TranslateMessage(&message);
-            DispatchMessageA(&message);
-        }
+        ProcessPendingMessages(window, &bitmapBuffer, &keyboardState);
+
+        // Should I make this relative to the bitmap instead?
+        POINT mousePos;
+        GetCursorPos(&mousePos);
+        ScreenToClient(window, &mousePos);
+        keyboardState.mouseX = mousePos.x;
+        keyboardState.mouseY = mousePos.y;
 
         bitmap graphicsBuffer = {
-            .memory = g_graphicsBuffer.memory,
-            .width  = g_graphicsBuffer.width,
-            .height = g_graphicsBuffer.height,
-            .pitch  = g_graphicsBuffer.pitch,
+            .memory = bitmapBuffer.memory,
+            .width  = bitmapBuffer.width,
+            .height = bitmapBuffer.height,
+            .pitch  = bitmapBuffer.pitch,
         };
 
         // Assumes secondsPerFrame is hit
         Update(&graphicsBuffer, secondsPerFrame);
 
         ivec2 windowDimensions = GetWindowDimensions(window);
-        DisplayBitmapInWindow(&g_graphicsBuffer, deviceContext, windowDimensions.x, windowDimensions.y);
+        DisplayBitmapInWindow(&bitmapBuffer, deviceContext, windowDimensions.x, windowDimensions.y);
 
         LARGE_INTEGER performanceCountAtEndOfFrame = GetCurrentPerformanceCount();
         f32 secondsElapsedForFrame = PerformanceCountDiffInSeconds(performanceCountAtStartOfFrame, performanceCountAtEndOfFrame, performanceFrequence);
