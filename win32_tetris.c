@@ -100,24 +100,13 @@ static LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM
 
 #define RGB(r, g, b) ((r) << 16) | ((g) << 8) | (b)
 static void TEST_FillBitmap(win32_bitmap* bitmap) {
+    static i32 offset = 0;
+    ++offset;
+
     u32* pixel = bitmap->memory;
     for (i32 y = 0; y < bitmap->height; ++y) {
-        for (i32 x = 0; x < bitmap->width; ++x) { 
-            f32 cx = 2.5f * (2.0f * (f32)(x - bitmap->width  / 2.0f) / bitmap->width) - 0.5f;
-            f32 cy = 2.5f * (2.0f * (f32)(y - bitmap->height / 2.0f) / bitmap->width);
-            f32 zx = 0.0f;
-            f32 zy = 0.0f;
-
-            i32 i;
-            for (i = 0; i < 35 && (zx * zx + zy * zy) <= 4.0f; ++i) {
-                f32 zxTemp = zx * zx - zy * zy + cx;
-                zy = 2.0f * zx * zy + cy;
-                zx = zxTemp;
-            }
-
-            i = 255 * (1.0f - i / 35.0f);
-
-            *pixel++ = RGB(i, i, i);
+        for (i32 x = 0; x < bitmap->width; ++x) {
+            *pixel++ = RGB(x + offset, 0, y + offset);
         }
     }
 }
@@ -140,9 +129,9 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
         return 1;
     }
 
-    // Change size later
-    InitBitmap(&g_graphicsBuffer, 1920, 1080);
-    TEST_FillBitmap(&g_graphicsBuffer);
+    HDC deviceContext = GetDC(window);
+
+    InitBitmap(&g_graphicsBuffer, 960, 540);
 
     g_isRunning = true;
     while (g_isRunning) {
@@ -151,6 +140,11 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
             TranslateMessage(&message);
             DispatchMessageA(&message);
         }
+
+        TEST_FillBitmap(&g_graphicsBuffer);
+
+        ivec2 windowDimensions = GetWindowDimensions(window);
+        DisplayBitmapInWindow(&g_graphicsBuffer, deviceContext, windowDimensions.x, windowDimensions.y);
     }
 
     return 0;
