@@ -1,5 +1,5 @@
 #include <Windows.h>
-#include "tetris_types.h"
+#include "tetris.h"
 #pragma comment(lib, "winmm.lib")
 
 #include <stdio.h> // Debug
@@ -18,7 +18,7 @@ typedef struct ivec2 {
 } ivec2;
 
 static b32 g_isRunning;
-static win32_bitmap g_graphicsBuffer;
+static win32_bitmap g_graphicsBuffer; // Does this actually need to be global?
 
 static inline LARGE_INTEGER GetCurrentPerformanceCount(void) {
     LARGE_INTEGER value;
@@ -111,19 +111,6 @@ static LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM
     return DefWindowProc(window, message, wParam, lParam);
 }
 
-#define RGB(r, g, b) ((r) << 16) | ((g) << 8) | (b)
-static void TEST_FillBitmap(win32_bitmap* bitmap) {
-    static i32 offset = 0;
-    ++offset;
-
-    u32* pixel = bitmap->memory;
-    for (i32 y = 0; y < bitmap->height; ++y) {
-        for (i32 x = 0; x < bitmap->width; ++x) {
-            *pixel++ = RGB(x + offset, 0, y + offset);
-        }
-    }
-}
-
 int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _In_ LPSTR cmdLine, _In_ int showCmd) {
     WNDCLASSA windowClass = {
         .style = CS_HREDRAW | CS_VREDRAW,
@@ -158,6 +145,8 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
 
     InitBitmap(&g_graphicsBuffer, 960, 540);
 
+    OnStartup();
+
     g_isRunning = true;
     while (g_isRunning) {
         LARGE_INTEGER performanceCountAtStartOfFrame = GetCurrentPerformanceCount();
@@ -168,7 +157,15 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
             DispatchMessageA(&message);
         }
 
-        TEST_FillBitmap(&g_graphicsBuffer);
+        bitmap graphicsBuffer = {
+            .memory = g_graphicsBuffer.memory,
+            .width  = g_graphicsBuffer.width,
+            .height = g_graphicsBuffer.height,
+            .pitch  = g_graphicsBuffer.pitch,
+        };
+
+        // Assumes secondsPerFrame is hit
+        Update(&graphicsBuffer, secondsPerFrame);
 
         ivec2 windowDimensions = GetWindowDimensions(window);
         DisplayBitmapInWindow(&g_graphicsBuffer, deviceContext, windowDimensions.x, windowDimensions.y);

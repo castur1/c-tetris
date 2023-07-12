@@ -18,9 +18,15 @@
     <ClCompile Include="win32_tetris.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="tetris.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="tetris_types.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="tetris.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
