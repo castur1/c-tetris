@@ -47,11 +47,38 @@ static void InitBitmap(win32_bitmap* bitmap, i32 width, i32 height) {
 }
 #undef BYTES_PER_PIXEL
 
+#define ADD_BARS 1
 static void DisplayBitmapInWindow(const win32_bitmap* bitmap, HDC deviceContext, i32 windowWidth, i32 windowHeight) {
+#if ADD_BARS
+    f32 bitmapAspectRatio = (f32)bitmap->width / bitmap->height;
+
+    if (windowHeight * bitmapAspectRatio < windowWidth) {
+        i32 xOffset = (windowWidth - windowHeight * bitmapAspectRatio) / 2.0f + 1;
+
+        PatBlt(deviceContext, 0, 0, xOffset, windowHeight, BLACKNESS);
+        PatBlt(deviceContext, windowWidth - xOffset, 0, xOffset, windowHeight, BLACKNESS);
+
+        SetStretchBltMode(deviceContext, STRETCH_DELETESCANS);
+        StretchDIBits(deviceContext, xOffset, 0, windowHeight * bitmapAspectRatio, windowHeight, \
+            0, 0, bitmap->width, bitmap->height, bitmap->memory, &bitmap->info, DIB_RGB_COLORS, SRCCOPY);
+}
+    else {
+        i32 yOffset = (windowHeight - windowWidth / bitmapAspectRatio) / 2.0f + 1;
+
+        PatBlt(deviceContext, 0, 0, windowWidth, yOffset, BLACKNESS);
+        PatBlt(deviceContext, 0, windowHeight - yOffset, windowWidth, windowHeight, BLACKNESS);
+
+        SetStretchBltMode(deviceContext, STRETCH_DELETESCANS);
+        StretchDIBits(deviceContext, 0, yOffset, windowWidth, windowWidth / bitmapAspectRatio, \
+            0, 0, bitmap->width, bitmap->height, bitmap->memory, &bitmap->info, DIB_RGB_COLORS, SRCCOPY);
+    }
+#else
     SetStretchBltMode(deviceContext, STRETCH_DELETESCANS);
     StretchDIBits(deviceContext, 0, 0, windowWidth, windowHeight, \
         0, 0, bitmap->width, bitmap->height, bitmap->memory, &bitmap->info, DIB_RGB_COLORS, SRCCOPY);
+#endif
 }
+#undef ADD_BARS
 
 static LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
     switch (message) {
@@ -73,13 +100,25 @@ static LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM
 
 #define RGB(r, g, b) ((r) << 16) | ((g) << 8) | (b)
 static void TEST_FillBitmap(win32_bitmap* bitmap) {
-    u8* row = bitmap->memory;
+    u32* pixel = bitmap->memory;
     for (i32 y = 0; y < bitmap->height; ++y) {
-        u32* pixel = row;
         for (i32 x = 0; x < bitmap->width; ++x) { 
-            *pixel++ = RGB(255, 0, 0);
+            f32 cx = 2.5f * (2.0f * (f32)(x - bitmap->width  / 2.0f) / bitmap->width) - 0.5f;
+            f32 cy = 2.5f * (2.0f * (f32)(y - bitmap->height / 2.0f) / bitmap->width);
+            f32 zx = 0.0f;
+            f32 zy = 0.0f;
+
+            i32 i;
+            for (i = 0; i < 35 && (zx * zx + zy * zy) <= 4.0f; ++i) {
+                f32 zxTemp = zx * zx - zy * zy + cx;
+                zy = 2.0f * zx * zy + cy;
+                zx = zxTemp;
+            }
+
+            i = 255 * (1.0f - i / 35.0f);
+
+            *pixel++ = RGB(i, i, i);
         }
-        row += bitmap->pitch;
     }
 }
 
@@ -102,7 +141,7 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
     }
 
     // Change size later
-    InitBitmap(&g_graphicsBuffer, 480, 270);
+    InitBitmap(&g_graphicsBuffer, 1920, 1080);
     TEST_FillBitmap(&g_graphicsBuffer);
 
     g_isRunning = true;
