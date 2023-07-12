@@ -1,5 +1,8 @@
 #include <Windows.h>
 #include "tetris_types.h"
+#pragma comment(lib, "winmm.lib")
+
+#include <stdio.h> // Debug
 
 typedef struct win32_bitmap {
     BITMAPINFO info;
@@ -16,6 +19,16 @@ typedef struct ivec2 {
 
 static b32 g_isRunning;
 static win32_bitmap g_graphicsBuffer;
+
+static inline LARGE_INTEGER GetCurrentPerformanceCount(void) {
+    LARGE_INTEGER value;
+    QueryPerformanceCounter(&value);
+    return value;
+}
+
+static inline f32 PerformanceCountDiffInSeconds(LARGE_INTEGER startCount, LARGE_INTEGER endCount, LARGE_INTEGER performanceFrequency) {
+    return (endCount.QuadPart - startCount.QuadPart) / (f32)performanceFrequency.QuadPart;
+}
 
 static ivec2 GetWindowDimensions(HWND window) {
     RECT clientRect;
@@ -131,10 +144,24 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
 
     HDC deviceContext = GetDC(window);
 
+    timeBeginPeriod(1);
+
+    LARGE_INTEGER performanceFrequence;
+    QueryPerformanceFrequency(&performanceFrequence);
+
+    i32 refreshRate = 30;
+    i32 screenRefreshRate = GetDeviceCaps(deviceContext, VREFRESH);
+    if (screenRefreshRate > 1 && screenRefreshRate < refreshRate) { // This is probably unnecessary
+        refreshRate = screenRefreshRate;
+    }
+    f32 secondsPerFrame = 1.0f / refreshRate;
+
     InitBitmap(&g_graphicsBuffer, 960, 540);
 
     g_isRunning = true;
     while (g_isRunning) {
+        LARGE_INTEGER performanceCountAtStartOfFrame = GetCurrentPerformanceCount();
+
         MSG message;
         while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) {
             TranslateMessage(&message);
@@ -145,7 +172,29 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
 
         ivec2 windowDimensions = GetWindowDimensions(window);
         DisplayBitmapInWindow(&g_graphicsBuffer, deviceContext, windowDimensions.x, windowDimensions.y);
+
+        LARGE_INTEGER performanceCountAtEndOfFrame = GetCurrentPerformanceCount();
+        f32 secondsElapsedForFrame = PerformanceCountDiffInSeconds(performanceCountAtStartOfFrame, performanceCountAtEndOfFrame, performanceFrequence);
+        if (secondsElapsedForFrame < secondsPerFrame) {
+            f32 millisecondsToSleep = 1000 * (secondsPerFrame - secondsElapsedForFrame);
+            if (millisecondsToSleep >= 1) {
+                Sleep(millisecondsToSleep - 1);
+            }
+            while (secondsElapsedForFrame < secondsPerFrame) {
+                secondsElapsedForFrame = PerformanceCountDiffInSeconds(performanceCountAtStartOfFrame, GetCurrentPerformanceCount(), performanceFrequence);
+            }
+        }
+
+#if 1
+        f32 debugSeconds = PerformanceCountDiffInSeconds(performanceCountAtStartOfFrame, GetCurrentPerformanceCount(), performanceFrequence);
+        f32 debugFPS = 1.0f / debugSeconds;
+        char debugBuffer[64];
+        sprintf_s(debugBuffer, 64, "%.2f ms/f, %.2f fps\n", 1000.0f * debugSeconds, debugFPS);
+        OutputDebugStringA(debugBuffer);
+#endif
     }
+
+    timeEndPeriod(1);
 
     return 0;
 }
