@@ -145,6 +145,7 @@
   <ItemGroup>
     <ClInclude Include="tetris.h" />
     <ClInclude Include="tetris_types.h" />
+    <ClInclude Include="tetris_utility.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

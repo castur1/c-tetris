@@ -4,8 +4,6 @@
 
 #include <stdio.h> // Debug
 
-#define ArraySize(arr) (sizeof(arr) / sizeof(*arr))
-
 typedef struct win32_bitmap {
     BITMAPINFO info;
     void* memory;

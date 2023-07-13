@@ -2,6 +2,7 @@
 #define TETRIS_H
 
 #include "tetris_types.h"
+#include "tetris_utility.h"
 
 typedef struct bitmap {
     void* memory;
