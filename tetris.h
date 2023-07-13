@@ -38,6 +38,6 @@ typedef struct keyboard_state {
 } keyboard_state;
 
 extern void OnStartup(void);
-extern void Update(bitmap* graphicsBuffer, f32 deltaTime);
+extern void Update(bitmap* graphicsBuffer, keyboard_state* keyboardState, f32 deltaTime);
 
 #endif

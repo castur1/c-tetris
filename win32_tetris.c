@@ -204,6 +204,8 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
     }
     f32 secondsPerFrame = 1.0f / refreshRate;
 
+    f32 secondsForLastFrame = secondsPerFrame;
+
     win32_bitmap bitmapBuffer;
     InitBitmap(&bitmapBuffer, 960, 540);
 
@@ -231,8 +233,7 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
             .pitch  = bitmapBuffer.pitch,
         };
 
-        // Assumes secondsPerFrame is hit
-        Update(&graphicsBuffer, secondsPerFrame);
+        Update(&graphicsBuffer, &keyboardState, secondsForLastFrame);
 
         ivec2 windowDimensions = GetWindowDimensions(window);
         DisplayBitmapInWindow(&bitmapBuffer, deviceContext, windowDimensions.x, windowDimensions.y);
@@ -240,6 +241,7 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
         LARGE_INTEGER performanceCountAtEndOfFrame = GetCurrentPerformanceCount();
         f32 secondsElapsedForFrame = PerformanceCountDiffInSeconds(performanceCountAtStartOfFrame, performanceCountAtEndOfFrame, performanceFrequence);
         if (secondsElapsedForFrame < secondsPerFrame) {
+            secondsForLastFrame = secondsPerFrame;
             f32 millisecondsToSleep = 1000 * (secondsPerFrame - secondsElapsedForFrame);
             if (millisecondsToSleep >= 1) {
                 Sleep(millisecondsToSleep - 1);
@@ -247,6 +249,9 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
             while (secondsElapsedForFrame < secondsPerFrame) {
                 secondsElapsedForFrame = PerformanceCountDiffInSeconds(performanceCountAtStartOfFrame, GetCurrentPerformanceCount(), performanceFrequence);
             }
+        }
+        else {
+            secondsForLastFrame = secondsElapsedForFrame;
         }
 
 #if 1
