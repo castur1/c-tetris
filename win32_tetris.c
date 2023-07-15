@@ -1,8 +1,11 @@
 #include <Windows.h>
+#include <dsound.h>
 #include "tetris.h"
-#pragma comment(lib, "winmm.lib")
+#pragma comment(lib, "winmm.lib")  // Perhaps I should just add these to additional dependencies instead?
+#pragma comment(lib, "dsound.lib") // ...Like, for compatability reasons and stuff
 
 #include <stdio.h> // Debug
+
 
 typedef struct win32_bitmap {
     BITMAPINFO info;
@@ -17,7 +20,53 @@ typedef struct ivec2 {
     i32 y;
 } ivec2;
 
+
 static b32 g_isRunning;
+static win32_bitmap g_bitmapBuffer;
+static LPDIRECTSOUNDBUFFER g_secondarySoundBuffer; // Probably shouldn't be global
+
+
+static int InitDirectSound(HWND window) {
+    LPDIRECTSOUND directSound;
+
+    if (FAILED(DirectSoundCreate(0, &directSound, 0))) {
+        return 0;
+    }
+
+    if (FAILED(directSound->lpVtbl->SetCooperativeLevel(directSound, window, DSSCL_PRIORITY))) {
+        return 0;
+    }
+
+    WAVEFORMATEX waveFormat = { 0 };
+    waveFormat.wFormatTag = WAVE_FORMAT_PCM;
+    waveFormat.nChannels = 2;
+    waveFormat.nSamplesPerSec = 44100; // Should this be a function paramter instead?
+    waveFormat.wBitsPerSample = 16;
+    waveFormat.nBlockAlign = (waveFormat.nChannels * waveFormat.wBitsPerSample) / 8;
+    waveFormat.nAvgBytesPerSec = waveFormat.nSamplesPerSec * waveFormat.nBlockAlign;
+    waveFormat.cbSize = 0;
+
+    // DSBCAPS_GLOBALFOCUS? Or even DSBCAPS_STICKYFOCUS?
+    DSBUFFERDESC primaryBufferDescription = { .dwSize = sizeof(DSBUFFERDESC), .dwFlags = DSBCAPS_PRIMARYBUFFER };
+    LPDIRECTSOUNDBUFFER primaryBuffer;
+    if (FAILED(directSound->lpVtbl->CreateSoundBuffer(directSound, &primaryBufferDescription, &primaryBuffer, 0))) {
+        return 0;
+    }
+
+    if (FAILED(primaryBuffer->lpVtbl->SetFormat(primaryBuffer, &waveFormat))) {
+        return 0;
+    }
+
+    DSBUFFERDESC secondaryBufferDescription = {
+        .dwSize = sizeof(DSBUFFERDESC),
+        .dwFlags = 0,
+        .dwBufferBytes = 2 * waveFormat.nAvgBytesPerSec, // Should this be a function paramter instead?
+        .lpwfxFormat = &waveFormat
+    };
+    if (FAILED(directSound->lpVtbl->CreateSoundBuffer(directSound, &secondaryBufferDescription, &g_secondarySoundBuffer, 0))) {
+        return 0;
+    }
+}
 
 static inline LARGE_INTEGER GetCurrentPerformanceCount(void) {
     LARGE_INTEGER value;
@@ -162,9 +211,28 @@ ProcessPendingMessages(HWND window, win32_bitmap* bitmapBuffer, keyboard_state* 
     }
 }
 
+static void GetMousePosition(HWND window, i32* x, i32* y) {
+    POINT mousePos;
+    GetCursorPos(&mousePos);
+    ScreenToClient(window, &mousePos);
+    *x = mousePos.x;
+    *y = mousePos.y;
+}
+
 static LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
-    if (message == WM_CLOSE || message == WM_DESTROY || message == WM_QUIT) {
-        g_isRunning = false;
+    switch (message) {
+        case WM_CLOSE:
+        case WM_DESTROY:
+        case WM_QUIT: {
+            g_isRunning = false;
+        } break;
+        case WM_PAINT: { // Yes, this unfortunately needs to be here
+            PAINTSTRUCT paint;
+            HDC deviceContext = BeginPaint(window, &paint);
+            ivec2 windowDimensions = GetWindowDimensions(window);
+            DisplayBitmapInWindow(&g_bitmapBuffer, deviceContext, windowDimensions.x, windowDimensions.y);
+            EndPaint(window, &paint);
+        } break;
     }
 
     return DefWindowProc(window, message, wParam, lParam);
@@ -190,6 +258,9 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
 
     HDC deviceContext = GetDC(window);
 
+    InitDirectSound(window);
+    g_secondarySoundBuffer->lpVtbl->Play(g_secondarySoundBuffer, 0, 0, DSBPLAY_LOOPING);
+
     timeBeginPeriod(1);
 
     LARGE_INTEGER performanceFrequence;
@@ -204,37 +275,80 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
 
     f32 secondsForLastFrame = secondsPerFrame;
 
-    win32_bitmap bitmapBuffer;
-    InitBitmap(&bitmapBuffer, 960, 540);
+    InitBitmap(&g_bitmapBuffer, 960, 540);
 
     keyboard_state keyboardState = { 0 };
 
     OnStartup();
 
+#define BYTES_PER_SAMPLE 4
+#define SAMPLES_PER_SECOND 44100
+#define TONE_HZ 262
+#define SECOND_COUNT 2
+    u32 TEST_runningSampleIndex = 0;
+    i32 TEST_halfSquareWavePeriod = SAMPLES_PER_SECOND / TONE_HZ / 2;
+    i32 TEST_secondaryBufferSize = SECOND_COUNT * SAMPLES_PER_SECOND * BYTES_PER_SAMPLE;
+
     g_isRunning = true;
     while (g_isRunning) {
         LARGE_INTEGER performanceCountAtStartOfFrame = GetCurrentPerformanceCount();
 
-        ProcessPendingMessages(window, &bitmapBuffer, &keyboardState);
+        ProcessPendingMessages(window, &g_bitmapBuffer, &keyboardState);
 
         // Should I make this relative to the bitmap instead?
-        POINT mousePos;
-        GetCursorPos(&mousePos);
-        ScreenToClient(window, &mousePos);
-        keyboardState.mouseX = mousePos.x;
-        keyboardState.mouseY = mousePos.y;
+        GetMousePosition(window, &keyboardState.mouseX, &keyboardState.mouseY);
 
         bitmap graphicsBuffer = {
-            .memory = bitmapBuffer.memory,
-            .width  = bitmapBuffer.width,
-            .height = bitmapBuffer.height,
-            .pitch  = bitmapBuffer.pitch,
+            .memory = g_bitmapBuffer.memory,
+            .width  = g_bitmapBuffer.width,
+            .height = g_bitmapBuffer.height,
+            .pitch  = g_bitmapBuffer.pitch,
         };
 
         Update(&graphicsBuffer, &keyboardState, secondsForLastFrame);
 
+#if 1
+        DWORD playCursor;
+        DWORD writeCursor;
+        if (SUCCEEDED(g_secondarySoundBuffer->lpVtbl->GetCurrentPosition(g_secondarySoundBuffer, &playCursor, &writeCursor))) {
+            DWORD byteToLock = (TEST_runningSampleIndex * BYTES_PER_SAMPLE) % TEST_secondaryBufferSize; // 4 is bytesPerSample
+            DWORD bytesToWrite;
+            if (byteToLock > playCursor) {
+                bytesToWrite = TEST_secondaryBufferSize - byteToLock + playCursor;
+            }
+            else {
+                bytesToWrite = playCursor - byteToLock;
+            }
+
+            VOID* region1;
+            DWORD region1Size;
+            VOID* region2;
+            DWORD region2Size; 
+
+            if (SUCCEEDED(g_secondarySoundBuffer->lpVtbl->Lock(g_secondarySoundBuffer, byteToLock, bytesToWrite, &region1, &region1Size, &region2, &region2Size, 0))) {
+                i16* sampleOut = region1;
+                DWORD regionSampleCount = region1Size / BYTES_PER_SAMPLE;
+                for (DWORD sampleIndex = 0; sampleIndex < regionSampleCount; ++sampleIndex) {
+                    i16 sampleValue = (TEST_runningSampleIndex++ / TEST_halfSquareWavePeriod) % 2 ? 2000 : -2000; // 8000 is the sound wave amplitude
+                    *sampleOut++ = sampleValue;
+                    *sampleOut++ = sampleValue;
+                }
+
+                sampleOut = region2;
+                regionSampleCount = region2Size / BYTES_PER_SAMPLE;
+                for (DWORD sampleIndex = 0; sampleIndex < regionSampleCount; ++sampleIndex) {
+                    i16 sampleValue = (TEST_runningSampleIndex++ / TEST_halfSquareWavePeriod) % 2 ? 2000 : -2000;
+                    *sampleOut++ = sampleValue;
+                    *sampleOut++ = sampleValue;
+                }
+            }
+            g_secondarySoundBuffer->lpVtbl->Unlock(g_secondarySoundBuffer, region1, region1Size, region2, region2Size);
+        }
+
+#endif
+
         ivec2 windowDimensions = GetWindowDimensions(window);
-        DisplayBitmapInWindow(&bitmapBuffer, deviceContext, windowDimensions.x, windowDimensions.y);
+        DisplayBitmapInWindow(&g_bitmapBuffer, deviceContext, windowDimensions.x, windowDimensions.y);
 
         LARGE_INTEGER performanceCountAtEndOfFrame = GetCurrentPerformanceCount();
         f32 secondsElapsedForFrame = PerformanceCountDiffInSeconds(performanceCountAtStartOfFrame, performanceCountAtEndOfFrame, performanceFrequence);
