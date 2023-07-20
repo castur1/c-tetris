@@ -31,6 +31,26 @@ static win32_bitmap g_bitmapBuffer;
 static LPDIRECTSOUNDBUFFER g_secondarySoundBuffer; // Probably shouldn't be global
 
 
+// Credit: Raymond Chen
+static void ToggleFullscreen(HWND window) {
+    static WINDOWPLACEMENT g_windowPosition = { sizeof(g_windowPosition) };
+    DWORD style = GetWindowLong(window, GWL_STYLE);
+    if (style & WS_OVERLAPPEDWINDOW) {
+        MONITORINFO monitorInfo = { sizeof(monitorInfo) };
+        if (GetWindowPlacement(window, &g_windowPosition) && GetMonitorInfo(MonitorFromWindow(window, MONITOR_DEFAULTTOPRIMARY), &monitorInfo)) {
+            SetWindowLong(window, GWL_STYLE, style & ~WS_OVERLAPPEDWINDOW);
+            SetWindowPos(window, HWND_TOP, monitorInfo.rcMonitor.left, monitorInfo.rcMonitor.top, \
+                monitorInfo.rcMonitor.right - monitorInfo.rcMonitor.left, monitorInfo.rcMonitor.bottom - monitorInfo.rcMonitor.top, \
+                SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+        }
+    }
+    else {
+        SetWindowLong(window, GWL_STYLE, style | WS_OVERLAPPEDWINDOW);
+        SetWindowPlacement(window, &g_windowPosition);
+        SetWindowPos(window, 0, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+    }
+}
+
 static int InitDirectSound(HWND window, i32 samplesPerSecond, i32 secondaryBufferSize) {
     LPDIRECTSOUND directSound;
 
@@ -222,6 +242,11 @@ ProcessPendingMessages(HWND window, win32_bitmap* bitmapBuffer, keyboard_state* 
                     switch (message.wParam) {
                         case VK_ESCAPE: {
                             g_isRunning = false;
+                        } break;
+                        case 'F': { // Should this really be here? Perhaps platform independence instead?
+                            if (isDown) {
+                                ToggleFullscreen(window);
+                            }
                         } break;
                         // Is there a better solution?
                         case 'W': {
