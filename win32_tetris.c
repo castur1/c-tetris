@@ -4,7 +4,12 @@
 #pragma comment(lib, "winmm.lib")  // Perhaps I should just add these to additional dependencies instead?
 #pragma comment(lib, "dsound.lib") // ...Like, for compatability reasons and stuff
 
-#include <stdio.h> // Debug
+// Debug / testing
+#include <stdio.h>
+#include <math.h>
+
+
+#define PI 3.14159265f
 
 
 typedef struct win32_bitmap {
@@ -26,7 +31,7 @@ static win32_bitmap g_bitmapBuffer;
 static LPDIRECTSOUNDBUFFER g_secondarySoundBuffer; // Probably shouldn't be global
 
 
-static int InitDirectSound(HWND window) {
+static int InitDirectSound(HWND window, i32 samplesPerSecond, i32 secondaryBufferSize) {
     LPDIRECTSOUND directSound;
 
     if (FAILED(DirectSoundCreate(0, &directSound, 0))) {
@@ -40,7 +45,7 @@ static int InitDirectSound(HWND window) {
     WAVEFORMATEX waveFormat = { 0 };
     waveFormat.wFormatTag = WAVE_FORMAT_PCM;
     waveFormat.nChannels = 2;
-    waveFormat.nSamplesPerSec = 44100; // Should this be a function paramter instead?
+    waveFormat.nSamplesPerSec = samplesPerSecond;
     waveFormat.wBitsPerSample = 16;
     waveFormat.nBlockAlign = (waveFormat.nChannels * waveFormat.wBitsPerSample) / 8;
     waveFormat.nAvgBytesPerSec = waveFormat.nSamplesPerSec * waveFormat.nBlockAlign;
@@ -60,12 +65,50 @@ static int InitDirectSound(HWND window) {
     DSBUFFERDESC secondaryBufferDescription = {
         .dwSize = sizeof(DSBUFFERDESC),
         .dwFlags = 0,
-        .dwBufferBytes = 2 * waveFormat.nAvgBytesPerSec, // Should this be a function paramter instead?
+        .dwBufferBytes = secondaryBufferSize,
         .lpwfxFormat = &waveFormat
     };
     if (FAILED(directSound->lpVtbl->CreateSoundBuffer(directSound, &secondaryBufferDescription, &g_secondarySoundBuffer, 0))) {
         return 0;
     }
+}
+
+typedef struct TEST_sound_output {
+    i32 samplesPerSecond;
+    i32 toneHz;
+    i16 toneVolume;
+    u32 runningSampleIndex;
+    i32 wavePeriod;
+    i32 bytesPerSample;
+    i32 secondaryBufferSize;
+} TEST_sound_output;
+
+static void FillSoundBuffer(TEST_sound_output* soundOutput, DWORD byteToLock, DWORD bytesToWrite) {
+    VOID* region1;
+    DWORD region1Size;
+    VOID* region2;
+    DWORD region2Size;
+
+    if (SUCCEEDED(g_secondarySoundBuffer->lpVtbl->Lock(g_secondarySoundBuffer, byteToLock, bytesToWrite, &region1, &region1Size, &region2, &region2Size, 0))) {
+        i16* sampleOut = region1;
+        DWORD regionSampleCount = region1Size / soundOutput->bytesPerSample;
+        for (DWORD sampleIndex = 0; sampleIndex < regionSampleCount; ++sampleIndex) {
+            f32 t = 2.0f * PI * (f32)soundOutput->runningSampleIndex++ / soundOutput->wavePeriod;
+            i16 sampleValue = soundOutput->toneVolume * sinf(t);
+            *sampleOut++ = sampleValue;
+            *sampleOut++ = sampleValue;
+        }
+
+        sampleOut = region2;
+        regionSampleCount = region2Size / soundOutput->bytesPerSample;
+        for (DWORD sampleIndex = 0; sampleIndex < regionSampleCount; ++sampleIndex) {
+            f32 t = 2.0f * PI * (f32)soundOutput->runningSampleIndex++ / soundOutput->wavePeriod;
+            i16 sampleValue = soundOutput->toneVolume * sinf(t);
+            *sampleOut++ = sampleValue;
+            *sampleOut++ = sampleValue;
+        }
+    }
+    g_secondarySoundBuffer->lpVtbl->Unlock(g_secondarySoundBuffer, region1, region1Size, region2, region2Size);
 }
 
 static inline LARGE_INTEGER GetCurrentPerformanceCount(void) {
@@ -258,7 +301,17 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
 
     HDC deviceContext = GetDC(window);
 
-    InitDirectSound(window);
+    TEST_sound_output soundOutput = { 0 };
+    soundOutput.samplesPerSecond = 44100;
+    soundOutput.toneHz = 262;
+    soundOutput.toneVolume = 4000;
+    soundOutput.runningSampleIndex = 0;
+    soundOutput.wavePeriod = soundOutput.samplesPerSecond / soundOutput.toneHz;
+    soundOutput.bytesPerSample = sizeof(u16) * 2;
+    soundOutput.secondaryBufferSize = 2.0f * soundOutput.samplesPerSecond * soundOutput.bytesPerSample;
+
+    InitDirectSound(window, soundOutput.samplesPerSecond, soundOutput.secondaryBufferSize);
+    FillSoundBuffer(&soundOutput, 0, soundOutput.secondaryBufferSize);
     g_secondarySoundBuffer->lpVtbl->Play(g_secondarySoundBuffer, 0, 0, DSBPLAY_LOOPING);
 
     timeBeginPeriod(1);
@@ -281,14 +334,6 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
 
     OnStartup();
 
-#define BYTES_PER_SAMPLE 4
-#define SAMPLES_PER_SECOND 44100
-#define TONE_HZ 262
-#define SECOND_COUNT 2
-    u32 TEST_runningSampleIndex = 0;
-    i32 TEST_halfSquareWavePeriod = SAMPLES_PER_SECOND / TONE_HZ / 2;
-    i32 TEST_secondaryBufferSize = SECOND_COUNT * SAMPLES_PER_SECOND * BYTES_PER_SAMPLE;
-
     g_isRunning = true;
     while (g_isRunning) {
         LARGE_INTEGER performanceCountAtStartOfFrame = GetCurrentPerformanceCount();
@@ -305,44 +350,22 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
             .pitch  = g_bitmapBuffer.pitch,
         };
 
-        Update(&graphicsBuffer, &keyboardState, secondsForLastFrame);
+        Update(&graphicsBuffer, /*&soundBuffer,*/ &keyboardState, secondsForLastFrame);
 
 #if 1
         DWORD playCursor;
         DWORD writeCursor;
         if (SUCCEEDED(g_secondarySoundBuffer->lpVtbl->GetCurrentPosition(g_secondarySoundBuffer, &playCursor, &writeCursor))) {
-            DWORD byteToLock = (TEST_runningSampleIndex * BYTES_PER_SAMPLE) % TEST_secondaryBufferSize; // 4 is bytesPerSample
+            DWORD byteToLock = (soundOutput.runningSampleIndex * soundOutput.bytesPerSample) % soundOutput.secondaryBufferSize;
             DWORD bytesToWrite;
-            if (byteToLock > playCursor) {
-                bytesToWrite = TEST_secondaryBufferSize - byteToLock + playCursor;
+            if (byteToLock >= playCursor) {
+                bytesToWrite = soundOutput.secondaryBufferSize - byteToLock + playCursor;
             }
             else {
                 bytesToWrite = playCursor - byteToLock;
             }
 
-            VOID* region1;
-            DWORD region1Size;
-            VOID* region2;
-            DWORD region2Size; 
-
-            if (SUCCEEDED(g_secondarySoundBuffer->lpVtbl->Lock(g_secondarySoundBuffer, byteToLock, bytesToWrite, &region1, &region1Size, &region2, &region2Size, 0))) {
-                i16* sampleOut = region1;
-                DWORD regionSampleCount = region1Size / BYTES_PER_SAMPLE;
-                for (DWORD sampleIndex = 0; sampleIndex < regionSampleCount; ++sampleIndex) {
-                    i16 sampleValue = (TEST_runningSampleIndex++ / TEST_halfSquareWavePeriod) % 2 ? 2000 : -2000; // 8000 is the sound wave amplitude
-                    *sampleOut++ = sampleValue;
-                    *sampleOut++ = sampleValue;
-                }
-
-                sampleOut = region2;
-                regionSampleCount = region2Size / BYTES_PER_SAMPLE;
-                for (DWORD sampleIndex = 0; sampleIndex < regionSampleCount; ++sampleIndex) {
-                    i16 sampleValue = (TEST_runningSampleIndex++ / TEST_halfSquareWavePeriod) % 2 ? 2000 : -2000;
-                    *sampleOut++ = sampleValue;
-                    *sampleOut++ = sampleValue;
-                }
-            }
-            g_secondarySoundBuffer->lpVtbl->Unlock(g_secondarySoundBuffer, region1, region1Size, region2, region2Size);
+            FillSoundBuffer(&soundOutput, byteToLock, bytesToWrite);
         }
 
 #endif
