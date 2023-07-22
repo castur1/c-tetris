@@ -102,6 +102,7 @@ typedef struct TEST_sound_output {
     i32 wavePeriod;
     i32 bytesPerSample;
     i32 secondaryBufferSize;
+    f32 tSine;
     DWORD latencySampleCount;
 } TEST_sound_output;
 
@@ -115,19 +116,29 @@ static void FillSoundBuffer(TEST_sound_output* soundOutput, DWORD byteToLock, DW
         i16* sampleOut = region1;
         DWORD regionSampleCount = region1Size / soundOutput->bytesPerSample;
         for (DWORD sampleIndex = 0; sampleIndex < regionSampleCount; ++sampleIndex) {
-            f32 t = TWO_PI * (f32)soundOutput->runningSampleIndex++ / soundOutput->wavePeriod;
-            i16 sampleValue = soundOutput->toneVolume * sinf(t);
+            i16 sampleValue = soundOutput->toneVolume * sinf(soundOutput->tSine);
             *sampleOut++ = sampleValue;
             *sampleOut++ = sampleValue;
+
+            ++soundOutput->runningSampleIndex;
+            soundOutput->tSine += TWO_PI / soundOutput->wavePeriod;
+            if (soundOutput->tSine > TWO_PI) {
+                soundOutput->tSine -= TWO_PI;
+            }
         }
 
         sampleOut = region2;
         regionSampleCount = region2Size / soundOutput->bytesPerSample;
         for (DWORD sampleIndex = 0; sampleIndex < regionSampleCount; ++sampleIndex) {
-            f32 t = TWO_PI * (f32)soundOutput->runningSampleIndex++ / soundOutput->wavePeriod;
-            i16 sampleValue = soundOutput->toneVolume * sinf(t);
+            i16 sampleValue = soundOutput->toneVolume * sinf(soundOutput->tSine);
             *sampleOut++ = sampleValue;
             *sampleOut++ = sampleValue;
+
+            ++soundOutput->runningSampleIndex;
+            soundOutput->tSine += TWO_PI / soundOutput->wavePeriod;
+            if (soundOutput->tSine > TWO_PI) {
+                soundOutput->tSine -= TWO_PI;
+            }
         }
     }
     g_secondarySoundBuffer->lpVtbl->Unlock(g_secondarySoundBuffer, region1, region1Size, region2, region2Size);
@@ -336,6 +347,7 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
     soundOutput.wavePeriod = soundOutput.samplesPerSecond / soundOutput.toneHz;
     soundOutput.bytesPerSample = sizeof(u16) * 2;
     soundOutput.secondaryBufferSize = 2.0f * soundOutput.samplesPerSecond * soundOutput.bytesPerSample;
+    soundOutput.tSine = 0.0f;
     soundOutput.latencySampleCount = soundOutput.samplesPerSecond / 10;
 
     InitDirectSound(window, soundOutput.samplesPerSecond, soundOutput.secondaryBufferSize);
