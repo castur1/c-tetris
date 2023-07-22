@@ -9,7 +9,8 @@
 #include <math.h>
 
 
-#define PI 3.14159265f
+#define PI     3.14159265f
+#define TWO_PI 6.28318531f
 
 
 typedef struct win32_bitmap {
@@ -101,6 +102,7 @@ typedef struct TEST_sound_output {
     i32 wavePeriod;
     i32 bytesPerSample;
     i32 secondaryBufferSize;
+    DWORD latencySampleCount;
 } TEST_sound_output;
 
 static void FillSoundBuffer(TEST_sound_output* soundOutput, DWORD byteToLock, DWORD bytesToWrite) {
@@ -113,7 +115,7 @@ static void FillSoundBuffer(TEST_sound_output* soundOutput, DWORD byteToLock, DW
         i16* sampleOut = region1;
         DWORD regionSampleCount = region1Size / soundOutput->bytesPerSample;
         for (DWORD sampleIndex = 0; sampleIndex < regionSampleCount; ++sampleIndex) {
-            f32 t = 2.0f * PI * (f32)soundOutput->runningSampleIndex++ / soundOutput->wavePeriod;
+            f32 t = TWO_PI * (f32)soundOutput->runningSampleIndex++ / soundOutput->wavePeriod;
             i16 sampleValue = soundOutput->toneVolume * sinf(t);
             *sampleOut++ = sampleValue;
             *sampleOut++ = sampleValue;
@@ -122,7 +124,7 @@ static void FillSoundBuffer(TEST_sound_output* soundOutput, DWORD byteToLock, DW
         sampleOut = region2;
         regionSampleCount = region2Size / soundOutput->bytesPerSample;
         for (DWORD sampleIndex = 0; sampleIndex < regionSampleCount; ++sampleIndex) {
-            f32 t = 2.0f * PI * (f32)soundOutput->runningSampleIndex++ / soundOutput->wavePeriod;
+            f32 t = TWO_PI * (f32)soundOutput->runningSampleIndex++ / soundOutput->wavePeriod;
             i16 sampleValue = soundOutput->toneVolume * sinf(t);
             *sampleOut++ = sampleValue;
             *sampleOut++ = sampleValue;
@@ -334,9 +336,10 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
     soundOutput.wavePeriod = soundOutput.samplesPerSecond / soundOutput.toneHz;
     soundOutput.bytesPerSample = sizeof(u16) * 2;
     soundOutput.secondaryBufferSize = 2.0f * soundOutput.samplesPerSecond * soundOutput.bytesPerSample;
+    soundOutput.latencySampleCount = soundOutput.samplesPerSecond / 10;
 
     InitDirectSound(window, soundOutput.samplesPerSecond, soundOutput.secondaryBufferSize);
-    FillSoundBuffer(&soundOutput, 0, soundOutput.secondaryBufferSize);
+    FillSoundBuffer(&soundOutput, 0, soundOutput.latencySampleCount * soundOutput.bytesPerSample);
     g_secondarySoundBuffer->lpVtbl->Play(g_secondarySoundBuffer, 0, 0, DSBPLAY_LOOPING);
 
     timeBeginPeriod(1);
@@ -375,25 +378,33 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
             .pitch  = g_bitmapBuffer.pitch,
         };
 
-        Update(&graphicsBuffer, /*&soundBuffer,*/ &keyboardState, secondsForLastFrame);
+        if (keyboardState.w.isDown || keyboardState.a.isDown || keyboardState.s.isDown || keyboardState.d.isDown) {
+            soundOutput.toneHz = 523;
+            soundOutput.wavePeriod = soundOutput.samplesPerSecond / soundOutput.toneHz;
+        }
+        else {
+            soundOutput.toneHz = 262;
+            soundOutput.wavePeriod = soundOutput.samplesPerSecond / soundOutput.toneHz;
+        }
 
-#if 1
         DWORD playCursor;
         DWORD writeCursor;
         if (SUCCEEDED(g_secondarySoundBuffer->lpVtbl->GetCurrentPosition(g_secondarySoundBuffer, &playCursor, &writeCursor))) {
             DWORD byteToLock = (soundOutput.runningSampleIndex * soundOutput.bytesPerSample) % soundOutput.secondaryBufferSize;
+
+            DWORD targetCursor = (playCursor + soundOutput.latencySampleCount * soundOutput.bytesPerSample) % soundOutput.secondaryBufferSize;
             DWORD bytesToWrite;
-            if (byteToLock >= playCursor) {
-                bytesToWrite = soundOutput.secondaryBufferSize - byteToLock + playCursor;
+            if (byteToLock >= targetCursor) {
+                bytesToWrite = soundOutput.secondaryBufferSize - byteToLock + targetCursor;
             }
             else {
-                bytesToWrite = playCursor - byteToLock;
+                bytesToWrite = targetCursor - byteToLock;
             }
 
             FillSoundBuffer(&soundOutput, byteToLock, bytesToWrite);
         }
 
-#endif
+        Update(&graphicsBuffer, /*&soundBuffer,*/ &keyboardState, secondsForLastFrame);
 
         ivec2 windowDimensions = GetWindowDimensions(window);
         DisplayBitmapInWindow(&g_bitmapBuffer, deviceContext, windowDimensions.x, windowDimensions.y);
