@@ -3,6 +3,7 @@
 
 #include "tetris_types.h"
 #include "tetris_utility.h"
+#include <math.h> // Implement this myself?
 
 typedef struct bitmap {
     void* memory;
@@ -10,6 +11,12 @@ typedef struct bitmap {
     i32 height;
     i32 pitch;
 } bitmap;
+
+typedef struct TEST_sound_buffer {
+    i16* samples;
+    i32 samplesCount;
+    i32 samplesPerSecond;
+} TEST_sound_buffer;
 
 typedef struct keyboard_key_state {
     b32 isDown;
@@ -39,6 +46,7 @@ typedef struct keyboard_state {
 } keyboard_state;
 
 extern void OnStartup(void);
-extern void Update(bitmap* graphicsBuffer, keyboard_state* keyboardState, f32 deltaTime);
+extern void Update(bitmap* graphicsBuffer, TEST_sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime);
+
 
 #endif

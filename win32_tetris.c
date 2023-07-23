@@ -9,10 +9,6 @@
 #include <math.h>
 
 
-#define PI     3.14159265f
-#define TWO_PI 6.28318531f
-
-
 typedef struct win32_bitmap {
     BITMAPINFO info;
     void* memory;
@@ -106,42 +102,86 @@ typedef struct TEST_sound_output {
     DWORD latencySampleCount;
 } TEST_sound_output;
 
-static void FillSoundBuffer(TEST_sound_output* soundOutput, DWORD byteToLock, DWORD bytesToWrite) {
+static void ClearSoundBuffer(TEST_sound_output* soundBuffer) {
+    VOID* region1;
+    DWORD region1Size;
+    VOID* region2;
+    DWORD region2Size;
+
+    if (SUCCEEDED(g_secondarySoundBuffer->lpVtbl->Lock(g_secondarySoundBuffer, 0, soundBuffer->secondaryBufferSize, &region1, &region1Size, &region2, &region2Size, 0))) {
+        u8* byte = region1;
+        for (DWORD byteIndex = 0; byteIndex < region1Size; ++byteIndex) {
+            *byte++ = 0;
+        }
+
+        byte = region2;
+        for (DWORD byteIndex = 0; byteIndex < region2Size; ++byteIndex) {
+            *byte++ = 0;
+        }
+        Assert(region2Size == 0);
+        
+        g_secondarySoundBuffer->lpVtbl->Unlock(g_secondarySoundBuffer, region1, region1Size, region2, region2Size);
+    }
+}
+
+static void FillSoundBuffer(TEST_sound_output* destBuffer, TEST_sound_buffer* sourceBuffer, DWORD byteToLock, DWORD bytesToWrite) {
     VOID* region1;
     DWORD region1Size;
     VOID* region2;
     DWORD region2Size;
 
     if (SUCCEEDED(g_secondarySoundBuffer->lpVtbl->Lock(g_secondarySoundBuffer, byteToLock, bytesToWrite, &region1, &region1Size, &region2, &region2Size, 0))) {
+#if 1
+        i16* sourceSample = sourceBuffer->samples;
+
+        i16* destSample = region1;
+        DWORD region1SampleCount = region1Size / destBuffer->bytesPerSample;
+        for (DWORD sampleIndex = 0; sampleIndex < region1SampleCount; ++sampleIndex) {
+            *destSample++ = *sourceSample;
+            *destSample++ = *sourceSample++; // left and right are combined
+
+            ++destBuffer->runningSampleIndex;
+        }
+
+        destSample = region2;
+        DWORD region2SampleCount = region2Size / destBuffer->bytesPerSample;
+        for (DWORD sampleIndex = 0; sampleIndex < region2SampleCount; ++sampleIndex) {
+            *destSample++ = *sourceSample;
+            *destSample++ = *sourceSample++;
+
+            ++destBuffer->runningSampleIndex;
+        }
+#else
         i16* sampleOut = region1;
-        DWORD regionSampleCount = region1Size / soundOutput->bytesPerSample;
+        DWORD regionSampleCount = region1Size / destBuffer->bytesPerSample;
         for (DWORD sampleIndex = 0; sampleIndex < regionSampleCount; ++sampleIndex) {
-            i16 sampleValue = soundOutput->toneVolume * sinf(soundOutput->tSine);
+            i16 sampleValue = destBuffer->toneVolume * sinf(destBuffer->tSine);
             *sampleOut++ = sampleValue;
             *sampleOut++ = sampleValue;
 
-            ++soundOutput->runningSampleIndex;
-            soundOutput->tSine += TWO_PI / soundOutput->wavePeriod;
-            if (soundOutput->tSine > TWO_PI) {
-                soundOutput->tSine -= TWO_PI;
+            ++destBuffer->runningSampleIndex;
+            destBuffer->tSine += TWO_PI / destBuffer->wavePeriod;
+            if (destBuffer->tSine > TWO_PI) {
+                destBuffer->tSine -= TWO_PI;
             }
         }
 
         sampleOut = region2;
-        regionSampleCount = region2Size / soundOutput->bytesPerSample;
+        regionSampleCount = region2Size / destBuffer->bytesPerSample;
         for (DWORD sampleIndex = 0; sampleIndex < regionSampleCount; ++sampleIndex) {
-            i16 sampleValue = soundOutput->toneVolume * sinf(soundOutput->tSine);
+            i16 sampleValue = destBuffer->toneVolume * sinf(destBuffer->tSine);
             *sampleOut++ = sampleValue;
             *sampleOut++ = sampleValue;
 
-            ++soundOutput->runningSampleIndex;
-            soundOutput->tSine += TWO_PI / soundOutput->wavePeriod;
-            if (soundOutput->tSine > TWO_PI) {
-                soundOutput->tSine -= TWO_PI;
+            ++destBuffer->runningSampleIndex;
+            destBuffer->tSine += TWO_PI / destBuffer->wavePeriod;
+            if (destBuffer->tSine > TWO_PI) {
+                destBuffer->tSine -= TWO_PI;
             }
         }
+#endif
+        g_secondarySoundBuffer->lpVtbl->Unlock(g_secondarySoundBuffer, region1, region1Size, region2, region2Size);
     }
-    g_secondarySoundBuffer->lpVtbl->Unlock(g_secondarySoundBuffer, region1, region1Size, region2, region2Size);
 }
 
 static inline LARGE_INTEGER GetCurrentPerformanceCount(void) {
@@ -350,8 +390,10 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
     soundOutput.tSine = 0.0f;
     soundOutput.latencySampleCount = soundOutput.samplesPerSecond / 10;
 
+    i16 soundSamples[88200]; // virtualAlloc?
+
     InitDirectSound(window, soundOutput.samplesPerSecond, soundOutput.secondaryBufferSize);
-    FillSoundBuffer(&soundOutput, 0, soundOutput.latencySampleCount * soundOutput.bytesPerSample);
+    ClearSoundBuffer(&soundOutput);
     g_secondarySoundBuffer->lpVtbl->Play(g_secondarySoundBuffer, 0, 0, DSBPLAY_LOOPING);
 
     timeBeginPeriod(1);
@@ -390,22 +432,14 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
             .pitch  = g_bitmapBuffer.pitch,
         };
 
-        if (keyboardState.w.isDown || keyboardState.a.isDown || keyboardState.s.isDown || keyboardState.d.isDown) {
-            soundOutput.toneHz = 523;
-            soundOutput.wavePeriod = soundOutput.samplesPerSecond / soundOutput.toneHz;
-        }
-        else {
-            soundOutput.toneHz = 262;
-            soundOutput.wavePeriod = soundOutput.samplesPerSecond / soundOutput.toneHz;
-        }
-
+        b32 soundIsValid = false;
+        DWORD byteToLock;
+        DWORD bytesToWrite = 0;
         DWORD playCursor;
         DWORD writeCursor;
         if (SUCCEEDED(g_secondarySoundBuffer->lpVtbl->GetCurrentPosition(g_secondarySoundBuffer, &playCursor, &writeCursor))) {
-            DWORD byteToLock = (soundOutput.runningSampleIndex * soundOutput.bytesPerSample) % soundOutput.secondaryBufferSize;
-
+            byteToLock = (soundOutput.runningSampleIndex * soundOutput.bytesPerSample) % soundOutput.secondaryBufferSize;
             DWORD targetCursor = (playCursor + soundOutput.latencySampleCount * soundOutput.bytesPerSample) % soundOutput.secondaryBufferSize;
-            DWORD bytesToWrite;
             if (byteToLock >= targetCursor) {
                 bytesToWrite = soundOutput.secondaryBufferSize - byteToLock + targetCursor;
             }
@@ -413,10 +447,19 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
                 bytesToWrite = targetCursor - byteToLock;
             }
 
-            FillSoundBuffer(&soundOutput, byteToLock, bytesToWrite);
+            soundIsValid = true;
         }
 
-        Update(&graphicsBuffer, /*&soundBuffer,*/ &keyboardState, secondsForLastFrame);
+        TEST_sound_buffer soundBuffer = { 0 };
+        soundBuffer.samplesPerSecond = soundOutput.samplesPerSecond;
+        soundBuffer.samples = soundSamples;
+        soundBuffer.samplesCount = bytesToWrite / soundOutput.bytesPerSample;
+
+        Update(&graphicsBuffer, &soundBuffer, &keyboardState, secondsForLastFrame);
+
+        if (soundIsValid) {
+            FillSoundBuffer(&soundOutput, &soundBuffer, byteToLock, bytesToWrite);
+        }
 
         ivec2 windowDimensions = GetWindowDimensions(window);
         DisplayBitmapInWindow(&g_bitmapBuffer, deviceContext, windowDimensions.x, windowDimensions.y);
