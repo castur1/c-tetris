@@ -9,6 +9,18 @@
 #include <math.h>
 
 
+typedef struct win32_sound_buffer {
+    i32 samplesPerSecond;
+    i32 toneHz;
+    i16 toneVolume;
+    u32 runningSampleIndex;
+    i32 wavePeriod;
+    i32 bytesPerSample;
+    i32 secondaryBufferSize;
+    f32 tSine;
+    DWORD latencySampleCount;
+} win32_sound_buffer;
+
 typedef struct win32_bitmap {
     BITMAPINFO info;
     void* memory;
@@ -90,19 +102,7 @@ static int InitDirectSound(HWND window, i32 samplesPerSecond, i32 secondaryBuffe
     }
 }
 
-typedef struct TEST_sound_output {
-    i32 samplesPerSecond;
-    i32 toneHz;
-    i16 toneVolume;
-    u32 runningSampleIndex;
-    i32 wavePeriod;
-    i32 bytesPerSample;
-    i32 secondaryBufferSize;
-    f32 tSine;
-    DWORD latencySampleCount;
-} TEST_sound_output;
-
-static void ClearSoundBuffer(TEST_sound_output* soundBuffer) {
+static void ClearSoundBuffer(win32_sound_buffer* soundBuffer) {
     VOID* region1;
     DWORD region1Size;
     VOID* region2;
@@ -124,7 +124,7 @@ static void ClearSoundBuffer(TEST_sound_output* soundBuffer) {
     }
 }
 
-static void FillSoundBuffer(TEST_sound_output* destBuffer, TEST_sound_buffer* sourceBuffer, DWORD byteToLock, DWORD bytesToWrite) {
+static void FillSoundBuffer(win32_sound_buffer* destBuffer, TEST_sound_buffer* sourceBuffer, DWORD byteToLock, DWORD bytesToWrite) {
     VOID* region1;
     DWORD region1Size;
     VOID* region2;
@@ -140,7 +140,7 @@ static void FillSoundBuffer(TEST_sound_output* destBuffer, TEST_sound_buffer* so
             *destSample++ = *sourceSample;
             *destSample++ = *sourceSample++; // left and right are combined
 
-            ++destBuffer->runningSampleIndex;
+            ++destBuffer->runningSampleIndex; // This has no reason to be here?
         }
 
         destSample = region2;
@@ -379,7 +379,7 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
 
     HDC deviceContext = GetDC(window);
 
-    TEST_sound_output soundOutput = { 0 };
+    win32_sound_buffer soundOutput = { 0 }; // I don't like this name
     soundOutput.samplesPerSecond = 44100;
     soundOutput.toneHz = 262;
     soundOutput.toneVolume = 4000;
@@ -390,7 +390,8 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
     soundOutput.tSine = 0.0f;
     soundOutput.latencySampleCount = soundOutput.samplesPerSecond / 10;
 
-    i16 soundSamples[88200]; // virtualAlloc?
+    i16 soundSamples[88200]; // virtualAlloc? Also, 88200 is seconds * samplesPerSecond
+    b32 soundIsValid = false;
 
     InitDirectSound(window, soundOutput.samplesPerSecond, soundOutput.secondaryBufferSize);
     ClearSoundBuffer(&soundOutput);
@@ -432,13 +433,16 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
             .pitch  = g_bitmapBuffer.pitch,
         };
 
-        b32 soundIsValid = false;
-        DWORD byteToLock;
+        DWORD byteToLock = 0;
         DWORD bytesToWrite = 0;
-        DWORD playCursor;
-        DWORD writeCursor;
-        if (SUCCEEDED(g_secondarySoundBuffer->lpVtbl->GetCurrentPosition(g_secondarySoundBuffer, &playCursor, &writeCursor))) {
+        DWORD playCursor = 0;
+        DWORD writeCursor = 0;
+        if (g_secondarySoundBuffer->lpVtbl->GetCurrentPosition(g_secondarySoundBuffer, &playCursor, &writeCursor) == DS_OK) {
+            if (!soundIsValid) {
+                soundOutput.runningSampleIndex = writeCursor / soundOutput.bytesPerSample;
+            }
             byteToLock = (soundOutput.runningSampleIndex * soundOutput.bytesPerSample) % soundOutput.secondaryBufferSize;
+
             DWORD targetCursor = (playCursor + soundOutput.latencySampleCount * soundOutput.bytesPerSample) % soundOutput.secondaryBufferSize;
             if (byteToLock >= targetCursor) {
                 bytesToWrite = soundOutput.secondaryBufferSize - byteToLock + targetCursor;
@@ -448,6 +452,9 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
             }
 
             soundIsValid = true;
+        }
+        else {
+            soundIsValid = false;
         }
 
         TEST_sound_buffer soundBuffer = { 0 };
