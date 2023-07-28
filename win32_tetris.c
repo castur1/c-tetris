@@ -341,9 +341,9 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
     HDC deviceContext = GetDC(window);
 
     LPDIRECTSOUNDBUFFER secondarySoundBuffer = 0;
-    i32 soundSafetySamples = SOUND_SAMPLES_PER_SECOND / 10; // 3 frames of latency, see HH day 19
+    i32 soundSafetyBytes = 0.04f * SOUND_SAMPLES_PER_SECOND * SOUND_BYTES_PER_SAMPLE;
     i16 soundSamples[2 * SOUND_BUFFER_SIZE]; // Should be heap allocated. VirtualAlloc?
-    i32 soundRunningByteIndex = 0; // Rename?
+    i32 soundRunningByteIndex = 0;
     b32 soundIsValid = false;
 
     InitDirectSound(window, &secondarySoundBuffer);
@@ -386,20 +386,42 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
             .pitch  = g_bitmapBuffer.pitch,
         };
 
+        Update(&graphicsBuffer, &keyboardState, secondsForLastFrame);
+
+        LARGE_INTEGER performanceCountAtSound = GetCurrentPerformanceCount();
+        f32 frameTimeAtSound = PerformanceCountDiffInSeconds(performanceCountAtStartOfFrame, performanceCountAtSound, performanceFrequence);
+
         DWORD byteToLock = 0;
         DWORD bytesToWrite = 0;
-
-        // CONTINUE HERE! Replace naïve approach? See HH day 20
         DWORD playCursor;
         DWORD writeCursor;
         if (secondarySoundBuffer->lpVtbl->GetCurrentPosition(secondarySoundBuffer, &playCursor, &writeCursor) == DS_OK) {
             if (!soundIsValid) {
                 soundRunningByteIndex = writeCursor;
+                soundIsValid = true;
             }
             byteToLock = soundRunningByteIndex;
 
-            DWORD targetCursor = (playCursor + soundSafetySamples * SOUND_BYTES_PER_SAMPLE) % SOUND_BUFFER_SIZE;
-            if (byteToLock >= targetCursor) {
+            DWORD soundBytesPerFrame = secondsPerFrame * SOUND_BUFFER_SIZE * SOUND_BYTES_PER_SAMPLE;
+            DWORD nextFrameBoundaryByte = playCursor + soundBytesPerFrame - frameTimeAtSound * SOUND_BUFFER_SIZE * SOUND_BYTES_PER_SAMPLE;
+
+            DWORD safeUnwrappedWriteCursor = writeCursor + soundSafetyBytes;
+            if (writeCursor < playCursor) {
+                safeUnwrappedWriteCursor += SOUND_BUFFER_SIZE;
+            }
+
+            b32 isAudioCardLatent = safeUnwrappedWriteCursor >= nextFrameBoundaryByte;
+
+            DWORD targetCursor = 0;
+            if (isAudioCardLatent) {
+                targetCursor = writeCursor + soundBytesPerFrame + soundSafetyBytes;
+            }
+            else {
+                targetCursor = nextFrameBoundaryByte + soundBytesPerFrame;
+            }
+            targetCursor %= SOUND_BUFFER_SIZE;
+
+            if (byteToLock > targetCursor) {
                 bytesToWrite = SOUND_BUFFER_SIZE - byteToLock + targetCursor;
             }
             else {
@@ -408,21 +430,15 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
 
             soundRunningByteIndex = (soundRunningByteIndex + bytesToWrite) % SOUND_BUFFER_SIZE;
 
-            soundIsValid = true;
+            TEST_sound_buffer soundBuffer = { 0 };
+            soundBuffer.samplesPerSecond = SOUND_SAMPLES_PER_SECOND;
+            soundBuffer.samples = soundSamples;
+            soundBuffer.samplesCount = bytesToWrite / SOUND_BYTES_PER_SAMPLE;
+            GetSoundSamples(&soundBuffer, &keyboardState);
+            FillSoundBuffer(&secondarySoundBuffer, &soundBuffer, byteToLock, bytesToWrite);
         }
         else {
             soundIsValid = false;
-        }
-
-        TEST_sound_buffer soundBuffer = { 0 };
-        soundBuffer.samplesPerSecond = SOUND_SAMPLES_PER_SECOND;
-        soundBuffer.samples = soundSamples;
-        soundBuffer.samplesCount = bytesToWrite / SOUND_BYTES_PER_SAMPLE;
-
-        Update(&graphicsBuffer, &soundBuffer, &keyboardState, secondsForLastFrame);
-
-        if (soundIsValid) {
-            FillSoundBuffer(&secondarySoundBuffer, &soundBuffer, byteToLock, bytesToWrite);
         }
 
         win32_ivec2 windowDimensions = GetWindowDimensions(window);
