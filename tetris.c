@@ -26,7 +26,7 @@ void Update(bitmap* graphicsBuffer, keyboard_state* keyboardState, f32 deltaTime
     }
 }
 
-void GetSoundSamples(TEST_sound_buffer* soundBuffer, keyboard_state* TEST_keyboardState) {
+void GetSoundSamples(sound_buffer* soundBuffer, keyboard_state* TEST_keyboardState) {
     static f32 tSine = 0.0f;
     i16 toneVolume = 4000;
     i32 toneHz = TEST_keyboardState->w.isDown ? 523 : 262;

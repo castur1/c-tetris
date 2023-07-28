@@ -12,11 +12,11 @@ typedef struct bitmap {
     i32 pitch;
 } bitmap;
 
-typedef struct TEST_sound_buffer {
+typedef struct sound_buffer {
     i16* samples;
     i32 samplesCount;
     i32 samplesPerSecond;
-} TEST_sound_buffer;
+} sound_buffer;
 
 typedef struct keyboard_key_state {
     b32 isDown;
@@ -47,6 +47,6 @@ typedef struct keyboard_state {
 
 extern void OnStartup(void);
 extern void Update(bitmap* graphicsBuffer, keyboard_state* keyboardState, f32 deltaTime);
-extern void GetSoundSamples(TEST_sound_buffer* soundBuffer, keyboard_state* TEST_keyboardState);
+extern void GetSoundSamples(sound_buffer* soundBuffer, keyboard_state* TEST_keyboardState);
 
 #endif

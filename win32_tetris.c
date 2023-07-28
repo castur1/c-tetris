@@ -118,7 +118,7 @@ static void ClearSoundBuffer(LPDIRECTSOUNDBUFFER* secondarySoundBuffer) {
     }
 }
 
-static void FillSoundBuffer(LPDIRECTSOUNDBUFFER* secondarySoundBuffer, TEST_sound_buffer* sourceBuffer, DWORD byteToLock, DWORD bytesToWrite) {
+static void FillSoundBuffer(LPDIRECTSOUNDBUFFER* secondarySoundBuffer, sound_buffer* sourceBuffer, DWORD byteToLock, DWORD bytesToWrite) {
     VOID* region1;
     DWORD region1Size;
     VOID* region2;
@@ -342,7 +342,7 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
 
     LPDIRECTSOUNDBUFFER secondarySoundBuffer = 0;
     i32 soundSafetyBytes = 0.04f * SOUND_SAMPLES_PER_SECOND * SOUND_BYTES_PER_SAMPLE;
-    i16 soundSamples[2 * SOUND_BUFFER_SIZE]; // Should be heap allocated. VirtualAlloc?
+    i16* soundSamples = VirtualAlloc(NULL, 2 * SOUND_BUFFER_SIZE, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
     i32 soundRunningByteIndex = 0;
     b32 soundIsValid = false;
 
@@ -391,8 +391,6 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
         LARGE_INTEGER performanceCountAtSound = GetCurrentPerformanceCount();
         f32 frameTimeAtSound = PerformanceCountDiffInSeconds(performanceCountAtStartOfFrame, performanceCountAtSound, performanceFrequence);
 
-        DWORD byteToLock = 0;
-        DWORD bytesToWrite = 0;
         DWORD playCursor;
         DWORD writeCursor;
         if (secondarySoundBuffer->lpVtbl->GetCurrentPosition(secondarySoundBuffer, &playCursor, &writeCursor) == DS_OK) {
@@ -400,7 +398,7 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
                 soundRunningByteIndex = writeCursor;
                 soundIsValid = true;
             }
-            byteToLock = soundRunningByteIndex;
+            DWORD byteToLock = soundRunningByteIndex;
 
             DWORD soundBytesPerFrame = secondsPerFrame * SOUND_BUFFER_SIZE * SOUND_BYTES_PER_SAMPLE;
             DWORD nextFrameBoundaryByte = playCursor + soundBytesPerFrame - frameTimeAtSound * SOUND_BUFFER_SIZE * SOUND_BYTES_PER_SAMPLE;
@@ -421,6 +419,7 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
             }
             targetCursor %= SOUND_BUFFER_SIZE;
 
+            DWORD bytesToWrite = 0;
             if (byteToLock > targetCursor) {
                 bytesToWrite = SOUND_BUFFER_SIZE - byteToLock + targetCursor;
             }
@@ -430,7 +429,7 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
 
             soundRunningByteIndex = (soundRunningByteIndex + bytesToWrite) % SOUND_BUFFER_SIZE;
 
-            TEST_sound_buffer soundBuffer = { 0 };
+            sound_buffer soundBuffer = { 0 };
             soundBuffer.samplesPerSecond = SOUND_SAMPLES_PER_SECOND;
             soundBuffer.samples = soundSamples;
             soundBuffer.samplesCount = bytesToWrite / SOUND_BYTES_PER_SAMPLE;
