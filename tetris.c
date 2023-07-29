@@ -21,7 +21,7 @@ void Update(bitmap* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* k
     u32* pixel = graphicsBuffer->memory;
     for (i32 y = 0; y < graphicsBuffer->height; ++y) {
         for (i32 x = 0; x < graphicsBuffer->width; ++x) {
-            *pixel++ = RGB(x + xOffset, 0, y + yOffset);
+            *pixel++ = RGBToU32(x + xOffset, 0, y + yOffset);
         }
     }
 

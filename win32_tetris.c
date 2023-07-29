@@ -53,6 +53,56 @@ static void ToggleFullscreen(HWND window) {
     }
 }
 
+static void* ReadEntireFile(char* fileName, i32* bytesRead) {
+    HANDLE fileHandle = CreateFileA(fileName, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (fileHandle == INVALID_HANDLE_VALUE) {
+        *bytesRead = 0;
+        return 0;
+    }
+
+    LARGE_INTEGER fileSize;
+    if (!GetFileSizeEx(fileHandle, &fileSize)) {
+        CloseHandle(fileHandle);
+        *bytesRead = 0;
+        return 0;
+    }
+
+    void* fileBuffer = VirtualAlloc(NULL, fileSize.QuadPart, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    if (!fileBuffer) {
+        CloseHandle(fileHandle);
+        *bytesRead = 0;
+        return 0;
+    }
+
+    if (!ReadFile(fileHandle, fileBuffer, fileSize.QuadPart, bytesRead, NULL)) {
+        VirtualFree(fileBuffer, 0, MEM_RELEASE);
+        CloseHandle(fileHandle);
+        *bytesRead = 0;
+        return 0;
+    }
+
+    CloseHandle(fileHandle);
+
+    return fileBuffer;
+}
+
+static b32 WriteEntireFile(const char* fileName, const void* buffer, i32 bufferSize) {
+    HANDLE fileHandle = CreateFileA(fileName, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (fileHandle == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+
+    DWORD bytesWritten = 0;
+    if (!WriteFile(fileHandle, buffer, bufferSize, &bytesWritten, NULL)) {
+        CloseHandle(fileHandle);
+        return false;
+    }
+
+    CloseHandle(fileHandle);
+
+    return bytesWritten == bufferSize;
+}
+
 static b32 InitDirectSound(HWND window, LPDIRECTSOUNDBUFFER* secondarySoundBuffer) {
     LPDIRECTSOUND directSound;
 
@@ -105,12 +155,12 @@ static void ClearSoundBuffer(LPDIRECTSOUNDBUFFER* secondarySoundBuffer) {
 
     if (SUCCEEDED((*secondarySoundBuffer)->lpVtbl->Lock(*secondarySoundBuffer, 0, SOUND_BUFFER_SIZE, &region1, &region1Size, &region2, &region2Size, 0))) {
         u8* byte = region1;
-        for (i32 i = 0; i < region1Size; ++i) {
+        for (u32 i = 0; i < region1Size; ++i) {
             *byte++ = 0;
         }
 
         byte = region2;
-        for (i32 i = 0; i < region2Size; ++i) {
+        for (u32 i = 0; i < region2Size; ++i) {
             *byte++ = 0;
         }
 
@@ -129,14 +179,14 @@ static void FillSoundBuffer(LPDIRECTSOUNDBUFFER* secondarySoundBuffer, sound_buf
 
         i16* destSample = region1;
         DWORD region1SampleCount = region1Size / SOUND_BYTES_PER_SAMPLE;
-        for (i32 i = 0; i < region1SampleCount; ++i) {
+        for (u32 i = 0; i < region1SampleCount; ++i) {
             *destSample++ = *sourceSample;
             *destSample++ = *sourceSample++; // left and right are combined
         }
 
         destSample = region2;
         DWORD region2SampleCount = region2Size / SOUND_BYTES_PER_SAMPLE;
-        for (i32 i = 0; i < region2SampleCount; ++i) {
+        for (u32 i = 0; i < region2SampleCount; ++i) {
             *destSample++ = *sourceSample;
             *destSample++ = *sourceSample++; // left and right are combined
         }
