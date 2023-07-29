@@ -46,7 +46,6 @@ typedef struct keyboard_state {
 } keyboard_state;
 
 extern void OnStartup(void);
-extern void Update(bitmap* graphicsBuffer, keyboard_state* keyboardState, f32 deltaTime);
-extern void GetSoundSamples(sound_buffer* soundBuffer, keyboard_state* TEST_keyboardState);
+extern void Update(bitmap* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime);
 
 #endif
