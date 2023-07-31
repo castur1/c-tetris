@@ -1,16 +1,19 @@
 #ifndef TETRIS_H
 #define TETRIS_H
 
+#include "win32_tetris.h"
+
 #include "tetris_types.h"
 #include "tetris_utility.h"
 #include <math.h> // Implement this myself?
 
-typedef struct bitmap {
+typedef struct bitmap_buffer {
     void* memory;
     i32 width;
     i32 height;
     i32 pitch;
-} bitmap;
+    i32 bytesPerPixel;
+} bitmap_buffer;
 
 typedef struct sound_buffer {
     i16* samples;
@@ -46,6 +49,6 @@ typedef struct keyboard_state {
 } keyboard_state;
 
 extern void OnStartup(void);
-extern void Update(bitmap* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime);
+extern void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime);
 
 #endif

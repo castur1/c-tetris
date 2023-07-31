@@ -1,6 +1,7 @@
 #include <Windows.h>
 #include <dsound.h>
 #include "tetris.h"
+#include "win32_tetris.h"
 #pragma comment(lib, "winmm.lib")  // Perhaps I should just add these to additional dependencies instead?
 #pragma comment(lib, "dsound.lib") // ...Like, for compatability reasons and stuff
 
@@ -53,8 +54,8 @@ static void ToggleFullscreen(HWND window) {
     }
 }
 
-static void* ReadEntireFile(char* fileName, i32* bytesRead) {
-    HANDLE fileHandle = CreateFileA(fileName, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+void* EngineReadEntireFile(char* filePath, i32* bytesRead) {
+    HANDLE fileHandle = CreateFileA(filePath, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (fileHandle == INVALID_HANDLE_VALUE) {
         *bytesRead = 0;
         return 0;
@@ -86,7 +87,7 @@ static void* ReadEntireFile(char* fileName, i32* bytesRead) {
     return fileBuffer;
 }
 
-static b32 WriteEntireFile(const char* fileName, const void* buffer, i32 bufferSize) {
+b32 EngineWriteEntireFile(const char* fileName, const void* buffer, i32 bufferSize) {
     HANDLE fileHandle = CreateFileA(fileName, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (fileHandle == INVALID_HANDLE_VALUE) {
         return false;
@@ -464,11 +465,12 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
             .samplesPerSecond = SOUND_SAMPLES_PER_SECOND
         };
 
-        bitmap graphicsBuffer = {
+        bitmap_buffer graphicsBuffer = {
             .memory = g_bitmapBuffer.memory,
             .width = g_bitmapBuffer.width,
             .height = g_bitmapBuffer.height,
             .pitch = g_bitmapBuffer.pitch,
+            .bytesPerPixel = 4
         };
 
         Update(&graphicsBuffer, &soundBuffer, &keyboardState, secondsForLastFrame);

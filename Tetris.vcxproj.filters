@@ -32,5 +32,8 @@
     <ClInclude Include="tetris_utility.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="win32_tetris.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
