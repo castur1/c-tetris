@@ -111,7 +111,7 @@ static bitmap_buffer LoadBMP(const char* filePath) {
     return bitmap;
 }
 
-static void TEST_DrawBitmap(bitmap_buffer* graphicsBuffer, bitmap_buffer* bitmap, i32 x, i32 y) {
+static void DrawBitmap(bitmap_buffer* graphicsBuffer, bitmap_buffer* bitmap, i32 x, i32 y) {
     i32 xMin = Max(x, 0);
     i32 yMin = Max(y, 0);
     i32 xMax = Min(x + bitmap->width, graphicsBuffer->width);
@@ -177,7 +177,7 @@ typedef struct wav_format {
 } wav_format;
 #pragma pack(pop)
 
-static audio_buffer TEST_LoadWAV(const char* filePath) {
+static audio_buffer LoadWAV(const char* filePath) {
     i32 bytesRead = 0;
     void* contents = EngineReadEntireFile(filePath, &bytesRead);
     if (bytesRead == 0) {
@@ -205,40 +205,47 @@ static audio_buffer TEST_LoadWAV(const char* filePath) {
     return result;
 }
 
-static bitmap_buffer g_testBitmap1;
-static bitmap_buffer g_testBitmap2;
-static audio_buffer g_testWAVData;
+typedef struct game_state {
+    i32 xOffset;
+    i32 yOffset;
+
+    i32 soundDataIndex;
+
+    bitmap_buffer testBitmap1;
+    bitmap_buffer testBitmap2;
+    audio_buffer testWAVData;
+} game_state;
+
+static game_state g_gameState;
 
 void OnStartup(void) {
-    g_testBitmap1 = LoadBMP("assets/OpacityTest.bmp");
-    g_testBitmap2 = LoadBMP("assets/opacity_test.bmp");
-
-    g_testWAVData = TEST_LoadWAV("assets/wav_test2.wav");
+    g_gameState.testBitmap1 = LoadBMP("assets/OpacityTest.bmp");
+    g_gameState.testBitmap2 = LoadBMP("assets/opacity_test.bmp");
+    g_gameState.testWAVData = LoadWAV("assets/wav_test3.wav");
 }
 
 void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
-    static i32 xOffset = 0;
-    static i32 yOffset = 0;
+    g_gameState.xOffset += 5 * (keyboardState->d.isDown - keyboardState->a.isDown);
+    g_gameState.yOffset += 5 * (keyboardState->w.isDown - keyboardState->s.isDown);  
 
-    xOffset += 5 * (keyboardState->d.isDown - keyboardState->a.isDown);
-    yOffset += 5 * (keyboardState->w.isDown - keyboardState->s.isDown);  
-
-    if (xOffset < 0) {
-        xOffset = 0;
+    if (g_gameState.xOffset < 0) {
+        g_gameState.xOffset = 0;
     }
-    if (yOffset < 0) {
-        yOffset = 0;
+    if (g_gameState.yOffset < 0) {
+        g_gameState.yOffset = 0;
     }
 
     u32* pixel = graphicsBuffer->memory;
     for (i32 y = 0; y < graphicsBuffer->height; ++y) {
         for (i32 x = 0; x < graphicsBuffer->width; ++x) {
-            *pixel++ = RGBToU32(x + xOffset, 0, y + yOffset);
+            *pixel++ = RGBToU32(x + g_gameState.xOffset, 0, y + g_gameState.yOffset);
         }
     }
 
-    TEST_DrawBitmap(graphicsBuffer, &g_testBitmap1, 50, 50);
-    TEST_DrawBitmap(graphicsBuffer, &g_testBitmap2, g_testBitmap1.width + 50, 50);
+    DrawBitmap(graphicsBuffer, &g_gameState.testBitmap1, 50, 50);
+    DrawBitmap(graphicsBuffer, &g_gameState.testBitmap2, g_gameState.testBitmap1.width + 50, 50);
+
+    TEST_DrawRectangle(graphicsBuffer, keyboardState->mouseX, keyboardState->mouseY, 10, 10, 0xFFFFFF);
 
 #if 0
     static f32 tSine = 0.0f;
@@ -258,12 +265,11 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
         }
     }
 #else
-    static i32 soundDataIndex = 0;
     i16* samples = soundBuffer->samples;
     for (i32 i = 0; i < soundBuffer->samplesCount; ++i) {
-        *samples++ = g_testWAVData.samples[soundDataIndex++];
-        *samples++ = g_testWAVData.samples[soundDataIndex++];
-        soundDataIndex %= g_testWAVData.sampleCount;
+        *samples++ = g_gameState.testWAVData.samples[g_gameState.soundDataIndex++];
+        *samples++ = g_gameState.testWAVData.samples[g_gameState.soundDataIndex++];
+        g_gameState.soundDataIndex %= g_gameState.testWAVData.sampleCount;
     }
 #endif 
 }

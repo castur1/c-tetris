@@ -344,12 +344,46 @@ ProcessPendingMessages(HWND window, win32_bitmap* bitmapBuffer, keyboard_state* 
     }
 }
 
-static void GetMousePosition(HWND window, i32* x, i32* y) {
+static void GetCursorPosition(HWND window, win32_bitmap* bitmap, i32* outX, i32* outY) {
     POINT mousePos;
     GetCursorPos(&mousePos);
     ScreenToClient(window, &mousePos);
-    *x = mousePos.x;
-    *y = mousePos.y;
+
+    win32_ivec2 windowDimensions = GetWindowDimensions(window);
+
+    f32 bitmapAspectRatio = (f32)bitmap->width / bitmap->height;
+    if (windowDimensions.y * bitmapAspectRatio < windowDimensions.x) {
+        i32 xOffset = (windowDimensions.x - windowDimensions.y * bitmapAspectRatio) / 2;
+
+        if (mousePos.x < xOffset) {
+            mousePos.x = xOffset;
+        }
+        else if (mousePos.x > windowDimensions.x - xOffset) {
+            mousePos.x = windowDimensions.x - xOffset;
+        }
+
+        mousePos.x -= xOffset;
+        *outX = ((f32)mousePos.x / (windowDimensions.y * bitmapAspectRatio)) * bitmap->width;
+        *outY = (1.0f - ((f32)mousePos.y / windowDimensions.y)) * bitmap->height;
+        *outX = Clamp(*outX, 0, bitmap->width);
+        *outY = Clamp(*outY, 0, bitmap->height);
+    }
+    else {
+        i32 yOffset = (windowDimensions.y - windowDimensions.x / bitmapAspectRatio) / 2;
+
+        if (mousePos.y < yOffset) {
+            mousePos.y = yOffset;
+        }
+        else if (mousePos.y > windowDimensions.y - yOffset) {
+            mousePos.y = windowDimensions.y - yOffset;
+        }
+
+        mousePos.y -= yOffset;
+        *outX = ((f32)mousePos.x / windowDimensions.x) * bitmap->width;
+        *outY = (1.0f - ((f32)mousePos.y / ((f32)windowDimensions.x / bitmapAspectRatio))) * bitmap->height;
+        *outX = Clamp(*outX, 0, bitmap->width);
+        *outY = Clamp(*outY, 0, bitmap->height);
+    }
 }
 
 static LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
@@ -430,8 +464,8 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
 
         ProcessPendingMessages(window, &g_bitmapBuffer, &keyboardState);
 
-        // Should I make this relative to the bitmap instead?
-        GetMousePosition(window, &keyboardState.mouseX, &keyboardState.mouseY);
+        // Should I make this relative to the bitmap instead? YES
+        GetCursorPosition(window, &g_bitmapBuffer, &keyboardState.mouseX, &keyboardState.mouseY);
 
         DWORD byteToLock = 0;
         DWORD bytesToWrite = 0;
