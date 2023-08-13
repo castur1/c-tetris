@@ -11,7 +11,7 @@
 
 
 // Should these really be macros? Yeah, probably
-#define SOUND_SAMPLES_PER_SECOND 44100
+#define SOUND_SAMPLES_PER_SECOND 48000
 #define SOUND_BYTES_PER_SAMPLE 4
 #define SOUND_BUFFER_SIZE (i32)(2.0f * SOUND_SAMPLES_PER_SECOND)
 
@@ -181,15 +181,15 @@ static void FillSoundBuffer(LPDIRECTSOUNDBUFFER* secondarySoundBuffer, sound_buf
         i16* destSample = region1;
         DWORD region1SampleCount = region1Size / SOUND_BYTES_PER_SAMPLE;
         for (u32 i = 0; i < region1SampleCount; ++i) {
-            *destSample++ = *sourceSample;
-            *destSample++ = *sourceSample++; // left and right are combined
+            *destSample++ = *sourceSample++;
+            *destSample++ = *sourceSample++;
         }
 
         destSample = region2;
         DWORD region2SampleCount = region2Size / SOUND_BYTES_PER_SAMPLE;
         for (u32 i = 0; i < region2SampleCount; ++i) {
-            *destSample++ = *sourceSample;
-            *destSample++ = *sourceSample++; // left and right are combined
+            *destSample++ = *sourceSample++;
+            *destSample++ = *sourceSample++;
         }
 
         (*secondarySoundBuffer)->lpVtbl->Unlock(*secondarySoundBuffer, region1, region1Size, region2, region2Size);
@@ -392,7 +392,7 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
     HDC deviceContext = GetDC(window);
 
     LPDIRECTSOUNDBUFFER secondarySoundBuffer = 0;
-    i16* soundSamples = VirtualAlloc(NULL, 2 * SOUND_BUFFER_SIZE, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    i16* soundSamples = VirtualAlloc(NULL, SOUND_BYTES_PER_SAMPLE * SOUND_BUFFER_SIZE, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
     i32 soundSafetyBytes = 0.04f * SOUND_SAMPLES_PER_SECOND * SOUND_BYTES_PER_SAMPLE;
     i32 soundRunningByteIndex = 0;
     b32 soundIsValid = false;

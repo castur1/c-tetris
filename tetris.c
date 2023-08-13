@@ -16,6 +16,7 @@ static void TEST_DrawRectangle(bitmap_buffer* graphicsBuffer, i32 x, i32 y, i32 
     }
 }
 
+// https://en.wikipedia.org/wiki/BMP_file_format
 #pragma pack(push, 1)
 typedef struct bitmap_header {
     u8  fileType[2];
@@ -149,12 +150,70 @@ static void TEST_DrawBitmap(bitmap_buffer* graphicsBuffer, bitmap_buffer* bitmap
     }
 }
 
+typedef struct audio_buffer {
+    i32 sampleCount;
+    i16* samples;
+} audio_buffer;
+
+// http://soundfile.sapp.org/doc/WaveFormat/
+#pragma pack(push, 1)
+typedef struct wav_format {
+    u8  chunkID[4];     // "RIFF"
+    u32 chunkSize;
+    u8  format[4];      // "WAVE"
+
+    u8  subchunk1ID[4]; // "fmt "
+    u32 subchunk1Size;
+    u16 audioFormat;
+    u16 numChannels;
+    u32 sampleRate;
+    u32 byteRate;
+    u16 blockAlign;
+    u16 bitsPerSample;
+
+    u8  subchunk2ID[4]; // "data"
+    u32 subchunk2Size;
+    // Here comes the actual audio data
+} wav_format;
+#pragma pack(pop)
+
+static audio_buffer TEST_LoadWAV(const char* filePath) {
+    i32 bytesRead = 0;
+    void* contents = EngineReadEntireFile(filePath, &bytesRead);
+    if (bytesRead == 0) {
+        return (audio_buffer){ 0 };
+    }
+
+    wav_format format = *(wav_format*)contents;
+
+    // If the WAV file's format doesn't match the game's internal audio format we don't want it
+    if ((format.chunkID[0] != 'R' || format.chunkID[1] != 'I' || format.chunkID[2] != 'F' || format.chunkID[3] != 'F') || // "RIFF"
+        (format.format[0] != 'W' || format.format[1] != 'A' || format.format[2] != 'V' || format.format[3] != 'E')     || // "WAVE"
+        (format.audioFormat != 1)                                                                                      || // No compression
+        (format.numChannels != 2)                                                                                      || // Stereo audio
+        (format.sampleRate != 48000)                                                                                   ||
+        (format.bitsPerSample != 16))
+    {
+        return (audio_buffer){ 0 };
+    }
+
+    // We never free the allocated data so this should be fine
+    audio_buffer result = { 
+        .samples = (u8*)contents + 44,
+        .sampleCount = format.subchunk2Size / 2
+    };
+    return result;
+}
+
 static bitmap_buffer g_testBitmap1;
 static bitmap_buffer g_testBitmap2;
+static audio_buffer g_testWAVData;
 
 void OnStartup(void) {
     g_testBitmap1 = LoadBMP("assets/OpacityTest.bmp");
     g_testBitmap2 = LoadBMP("assets/opacity_test.bmp");
+
+    g_testWAVData = TEST_LoadWAV("assets/wav_test2.wav");
 }
 
 void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
@@ -191,11 +250,20 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
     for (i32 sampleIndex = 0; sampleIndex < soundBuffer->samplesCount; ++sampleIndex) {
         i16 sampleValue = toneVolume * sinf(tSine);
         *samples++ = sampleValue;
+        *samples++ = sampleValue;
 
         tSine += TWO_PI / wavePeriod;
         if (tSine > TWO_PI) {
             tSine -= TWO_PI;
         }
     }
-#endif
+#else
+    static i32 soundDataIndex = 0;
+    i16* samples = soundBuffer->samples;
+    for (i32 i = 0; i < soundBuffer->samplesCount; ++i) {
+        *samples++ = g_testWAVData.samples[soundDataIndex++];
+        *samples++ = g_testWAVData.samples[soundDataIndex++];
+        soundDataIndex %= g_testWAVData.sampleCount;
+    }
+#endif 
 }
