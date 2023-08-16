@@ -54,7 +54,7 @@ static void ToggleFullscreen(HWND window) {
     }
 }
 
-void* EngineReadEntireFile(char* filePath, i32* bytesRead) {
+void* EngineReadEntireFile(const char* filePath, i32* bytesRead) {
     HANDLE fileHandle = CreateFileA(filePath, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (fileHandle == INVALID_HANDLE_VALUE) {
         *bytesRead = 0;
@@ -87,13 +87,13 @@ void* EngineReadEntireFile(char* filePath, i32* bytesRead) {
     return fileBuffer;
 }
 
-b32 EngineWriteEntireFile(const char* fileName, const void* buffer, i32 bufferSize) {
-    HANDLE fileHandle = CreateFileA(fileName, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+b32 EngineWriteEntireFile(const char* filePath, const void* buffer, i32 bufferSize) {
+    HANDLE fileHandle = CreateFileA(filePath, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (fileHandle == INVALID_HANDLE_VALUE) {
         return false;
     }
 
-    DWORD bytesWritten = 0;
+    DWORD bytesWritten;
     if (!WriteFile(fileHandle, buffer, bufferSize, &bytesWritten, NULL)) {
         CloseHandle(fileHandle);
         return false;
@@ -102,6 +102,27 @@ b32 EngineWriteEntireFile(const char* fileName, const void* buffer, i32 bufferSi
     CloseHandle(fileHandle);
 
     return bytesWritten == bufferSize;
+}
+
+static void ClearSoundBuffer(LPDIRECTSOUNDBUFFER* soundBuffer) {
+    VOID* region1;
+    DWORD region1Size;
+    VOID* region2;
+    DWORD region2Size;
+
+    if (SUCCEEDED((*soundBuffer)->lpVtbl->Lock(*soundBuffer, 0, SOUND_BUFFER_SIZE, &region1, &region1Size, &region2, &region2Size, 0))) {
+        u8* byte = region1;
+        for (u32 i = 0; i < region1Size; ++i) {
+            *byte++ = 0;
+        }
+
+        byte = region2;
+        for (u32 i = 0; i < region2Size; ++i) {
+            *byte++ = 0;
+        }
+
+        (*soundBuffer)->lpVtbl->Unlock(*soundBuffer, region1, region1Size, region2, region2Size);
+    }
 }
 
 static b32 InitDirectSound(HWND window, LPDIRECTSOUNDBUFFER* secondarySoundBuffer) {
@@ -145,28 +166,9 @@ static b32 InitDirectSound(HWND window, LPDIRECTSOUNDBUFFER* secondarySoundBuffe
         return false;
     }
 
+    ClearSoundBuffer(secondarySoundBuffer);
+
     return true;
-}
-
-static void ClearSoundBuffer(LPDIRECTSOUNDBUFFER* secondarySoundBuffer) {
-    VOID* region1;
-    DWORD region1Size;
-    VOID* region2;
-    DWORD region2Size;
-
-    if (SUCCEEDED((*secondarySoundBuffer)->lpVtbl->Lock(*secondarySoundBuffer, 0, SOUND_BUFFER_SIZE, &region1, &region1Size, &region2, &region2Size, 0))) {
-        u8* byte = region1;
-        for (u32 i = 0; i < region1Size; ++i) {
-            *byte++ = 0;
-        }
-
-        byte = region2;
-        for (u32 i = 0; i < region2Size; ++i) {
-            *byte++ = 0;
-        }
-
-        (*secondarySoundBuffer)->lpVtbl->Unlock(*secondarySoundBuffer, region1, region1Size, region2, region2Size);
-    }
 }
 
 static void FillSoundBuffer(LPDIRECTSOUNDBUFFER* secondarySoundBuffer, sound_buffer* sourceBuffer, DWORD byteToLock, DWORD bytesToWrite) {
@@ -236,38 +238,27 @@ static void InitBitmap(win32_bitmap* bitmap, i32 width, i32 height) {
 }
 #undef BYTES_PER_PIXEL
 
-#define ADD_BARS 1
-static void DisplayBitmapInWindow(const win32_bitmap* bitmap, HDC deviceContext, i32 windowWidth, i32 windowHeight) {
-#if ADD_BARS
-    f32 bitmapAspectRatio = (f32)bitmap->width / bitmap->height;
+static void DisplayBitmapInWindow(const win32_bitmap* bitmap, HDC deviceContext, i32 windowWidth, i32 windowHeight) { 
+    SetStretchBltMode(deviceContext, STRETCH_DELETESCANS);
 
+    f32 bitmapAspectRatio = (f32)bitmap->width / bitmap->height;
     if (windowHeight * bitmapAspectRatio < windowWidth) {
-        i32 xOffset = (windowWidth - windowHeight * bitmapAspectRatio) / 2.0f + 1;
+        i32 xOffset = (windowWidth - windowHeight * bitmapAspectRatio) / 2 + 1;
 
         PatBlt(deviceContext, 0, 0, xOffset, windowHeight, BLACKNESS);
         PatBlt(deviceContext, windowWidth - xOffset, 0, xOffset, windowHeight, BLACKNESS);
-
-        SetStretchBltMode(deviceContext, STRETCH_DELETESCANS);
         StretchDIBits(deviceContext, xOffset, 0, windowHeight * bitmapAspectRatio, windowHeight, \
             0, 0, bitmap->width, bitmap->height, bitmap->memory, &bitmap->info, DIB_RGB_COLORS, SRCCOPY);
-}
+    }
     else {
-        i32 yOffset = (windowHeight - windowWidth / bitmapAspectRatio) / 2.0f + 1;
+        i32 yOffset = (windowHeight - windowWidth / bitmapAspectRatio) / 2 + 1;
 
         PatBlt(deviceContext, 0, 0, windowWidth, yOffset, BLACKNESS);
         PatBlt(deviceContext, 0, windowHeight - yOffset, windowWidth, windowHeight, BLACKNESS);
-
-        SetStretchBltMode(deviceContext, STRETCH_DELETESCANS);
         StretchDIBits(deviceContext, 0, yOffset, windowWidth, windowWidth / bitmapAspectRatio, \
             0, 0, bitmap->width, bitmap->height, bitmap->memory, &bitmap->info, DIB_RGB_COLORS, SRCCOPY);
     }
-#else
-    SetStretchBltMode(deviceContext, STRETCH_DELETESCANS);
-    StretchDIBits(deviceContext, 0, 0, windowWidth, windowHeight, \
-        0, 0, bitmap->width, bitmap->height, bitmap->memory, &bitmap->info, DIB_RGB_COLORS, SRCCOPY);
-#endif
 }
-#undef ADD_BARS
 
 static void UpdateKeyboardKey(keyboard_key_state* keyState, b32 isDown) {
     if (keyState->isDown != isDown) {
@@ -286,22 +277,13 @@ ProcessPendingMessages(HWND window, win32_bitmap* bitmapBuffer, keyboard_state* 
     MSG message;
     while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) {
         switch (message.message) {
-            case WM_PAINT: {
-                PAINTSTRUCT paint;
-                HDC deviceContext = BeginPaint(window, &paint);
-                win32_ivec2 windowDimensions = GetWindowDimensions(window);
-                DisplayBitmapInWindow(bitmapBuffer, deviceContext, windowDimensions.x, windowDimensions.y);
-                EndPaint(window, &paint);
-            } break;
+            case WM_SYSKEYDOWN:
+            case WM_SYSKEYUP:
             case WM_KEYDOWN:
             case WM_KEYUP: {
                 b32 wasDown = (message.lParam & (1 << 30)) != 0;
                 b32 isDown  = (message.lParam & (1 << 31)) == 0;
-
-                b32 altKeyIsDown = false;
-                if (isDown) {
-                    altKeyIsDown = (message.lParam & (1 << 29)) != 0;
-                }
+                b32 altKeyIsDown = (message.lParam & (1 << 29)) != 0 && isDown;
 
                 if (wasDown != isDown) {
                     switch (message.wParam) {
@@ -423,27 +405,28 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
         return 1;
     }
 
-    HDC deviceContext = GetDC(window);
-
-    LPDIRECTSOUNDBUFFER secondarySoundBuffer = 0;
-    i16* soundSamples = VirtualAlloc(NULL, SOUND_BYTES_PER_SAMPLE * SOUND_BUFFER_SIZE, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-    i32 soundSafetyBytes = 0.04f * SOUND_SAMPLES_PER_SECOND * SOUND_BYTES_PER_SAMPLE;
-    i32 soundRunningByteIndex = 0;
-    b32 soundIsValid = false;
-    i32 soundBytesPerFrame;
-
-    InitDirectSound(window, &secondarySoundBuffer);
-    ClearSoundBuffer(&secondarySoundBuffer);
+    LPDIRECTSOUNDBUFFER secondarySoundBuffer;
+    if (!InitDirectSound(window, &secondarySoundBuffer)) {
+        return 1;
+    }
     secondarySoundBuffer->lpVtbl->Play(secondarySoundBuffer, 0, 0, DSBPLAY_LOOPING);
+
+    i16* soundSamples = VirtualAlloc(NULL, SOUND_BYTES_PER_SAMPLE * SOUND_BUFFER_SIZE, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    i32  soundSafetyBytes = 0.03f * SOUND_SAMPLES_PER_SECOND * SOUND_BYTES_PER_SAMPLE;
+    i32  soundRunningByteIndex = 0;
+    b32  soundIsValid = false;
+    i32  soundBytesPerFrame;
+
+    HDC deviceContext = GetDC(window);
 
     timeBeginPeriod(1);
 
     LARGE_INTEGER performanceFrequence;
     QueryPerformanceFrequency(&performanceFrequence);
 
-    i32 refreshRate = 30;
+    i32 refreshRate = 60; // 60 FPS pog?
     i32 screenRefreshRate = GetDeviceCaps(deviceContext, VREFRESH);
-    if (screenRefreshRate > 1 && screenRefreshRate < refreshRate) { // This is probably unnecessary
+    if (screenRefreshRate > 1 && screenRefreshRate < refreshRate) {
         refreshRate = screenRefreshRate;
     }
     f32 secondsPerFrame = 1.0f / refreshRate;
@@ -464,7 +447,6 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
 
         ProcessPendingMessages(window, &g_bitmapBuffer, &keyboardState);
 
-        // Should I make this relative to the bitmap instead? YES
         GetCursorPosition(window, &g_bitmapBuffer, &keyboardState.mouseX, &keyboardState.mouseY);
 
         DWORD byteToLock = 0;
@@ -533,10 +515,11 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
         }
 
 #if 1
+        f32 debugElapsed = PerformanceCountDiffInSeconds(performanceCountAtStartOfFrame, performanceCountAtEndOfFrame, performanceFrequence);
         f32 debugSeconds = PerformanceCountDiffInSeconds(performanceCountAtStartOfFrame, GetCurrentPerformanceCount(), performanceFrequence);
         f32 debugFPS = 1.0f / debugSeconds;
         char debugBuffer[64];
-        sprintf_s(debugBuffer, 64, "%.2f ms/f, %.2f fps\n", 1000.0f * debugSeconds, debugFPS);
+        sprintf_s(debugBuffer, 64, "%.2f ms/f, %.2f fps, %.2f elapsed\n", 1000.0f * debugSeconds, debugFPS, 1000.0f * debugElapsed);
         OutputDebugStringA(debugBuffer);
 #endif
     }
