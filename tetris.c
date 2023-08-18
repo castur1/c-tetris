@@ -186,6 +186,7 @@ static audio_buffer LoadWAV(const char* filePath) {
     wav_format format = *(wav_format*)contents;
 
     // If the WAV file's format doesn't match the game's internal audio format we don't want it
+    // Yes we do, make this more intelligent
     if ((format.chunkID[0] != 'R' || format.chunkID[1] != 'I' || format.chunkID[2] != 'F' || format.chunkID[3] != 'F') || // "RIFF"
         (format.format[0] != 'W' || format.format[1] != 'A' || format.format[2] != 'V' || format.format[3] != 'E')     || // "WAVE"
         (format.audioFormat != 1)                                                                                      || // No compression
@@ -204,50 +205,124 @@ static audio_buffer LoadWAV(const char* filePath) {
     return result;
 }
 
-typedef struct game_state {
-    i32 xOffset;
-    i32 yOffset;
-
-    i32 soundDataIndex;
-
-    bitmap_buffer testBitmap1;
-    bitmap_buffer testBitmap2;
-    audio_buffer testWAVData;
-} game_state;
-
-static game_state g_gameState;
-
-static void TEST_renderBackround(game_state* gameState, bitmap_buffer* graphicsBuffer) {
+static void TEST_renderBackround(bitmap_buffer* graphicsBuffer, i32 xOffset, i32 yOffset) {
     u32* pixel = graphicsBuffer->memory;
     for (i32 y = 0; y < graphicsBuffer->height; ++y) {
         for (i32 x = 0; x < graphicsBuffer->width; ++x) {
-            *pixel++ = RGBToU32(x + gameState->xOffset, 0, y + gameState->yOffset);
+            *pixel++ = RGBToU32(x + xOffset, 0, y + yOffset);
         }
     }
 }
 
-void OnStartup(void) {
-    g_gameState.testBitmap1 = LoadBMP("assets/OpacityTest.bmp");
-    g_gameState.testBitmap2 = LoadBMP("assets/opacity_test.bmp");
-    g_gameState.testWAVData = LoadWAV("assets/wav_test3.wav");
+typedef struct audio_channel {
+    i16* samples;
+    i32 samplesCount;
+    i32 sampleIndex;
+    b32 isLooping; // Should this be here?
+} audio_channel;
+
+static i32 PlaySound(audio_buffer* audioBuffer, b32 isLooping, audio_channel* channels, i32 channelsCount) {
+    for (i32 i = 0; i < channelsCount; ++i) {
+        if (!channels[i].samples) {
+            channels[i] = (audio_channel){
+                .samples = audioBuffer->samples,
+                .samplesCount = audioBuffer->sampleCount,
+                .sampleIndex = 0,
+                .isLooping = isLooping
+            };
+            return i;
+        }
+    }
 }
 
+static void StopSound(i32 index, audio_channel* channels) {
+    channels[index].samples = 0;
+}
+
+static void ProcessSound(sound_buffer* soundBuffer, audio_channel* channels, i32 channelCount) {
+    i16* samples = soundBuffer->samples;
+    for (i32 i = 0; i < soundBuffer->samplesCount; ++i) {
+        f32 sampleLeft  = 0.0f;
+        f32 sampleRight = 0.0f;
+        for (i32 j = 0; j < channelCount; ++j) {
+            if (!channels[j].samples) {
+                continue;
+            }
+
+            sampleLeft  += channels[j].samples[channels[j].sampleIndex++] / 32768.0f;
+            sampleRight += channels[j].samples[channels[j].sampleIndex++] / 32768.0f;
+
+            if (channels[j].sampleIndex >= channels[j].samplesCount) {
+                if (channels[j].isLooping) {
+                    channels[j].sampleIndex -= channels[j].samplesCount;
+                }
+                else {
+                    channels[j].samples = 0;
+                }
+            }
+        }
+
+        *samples++ = Clamp(sampleLeft,  -1.0f, 1.0f) * 32768.0f;
+        *samples++ = Clamp(sampleRight, -1.0f, 1.0f) * 32768.0f;
+    }
+}
+
+#define TEST_AUDIO_CHANNEL_COUNT 8
+
+typedef struct game_state {
+    i32 xOffset;
+    i32 yOffset;
+
+    audio_channel audioChannels[TEST_AUDIO_CHANNEL_COUNT];
+
+    bitmap_buffer testBitmap1;
+    bitmap_buffer testBitmap2;
+    audio_buffer testWAVData1;
+    audio_buffer testWAVData2;
+} game_state;
+
+static game_state g_gameState;
+
+void OnStartup(void) {
+    g_gameState.testBitmap1  = LoadBMP("assets/OpacityTest.bmp");
+    g_gameState.testBitmap2  = LoadBMP("assets/opacity_test.bmp");
+    g_gameState.testWAVData1 = LoadWAV("assets/wav_test3.wav");
+    g_gameState.testWAVData2 = LoadWAV("assets/wav_test2.wav");
+}
+
+// Is there really a need for sound_buffer? Doesn't audio_buffer suffice?
 void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
     f32 scrollSpeed = 256.0f;
     g_gameState.xOffset += (keyboardState->d.isDown - keyboardState->a.isDown) * scrollSpeed * deltaTime;
     g_gameState.yOffset += (keyboardState->w.isDown - keyboardState->s.isDown) * scrollSpeed * deltaTime;  
 
-    Max(0, g_gameState.xOffset);
-    Max(0, g_gameState.yOffset);
+    g_gameState.xOffset = Max(0, g_gameState.xOffset);
+    g_gameState.yOffset = Max(0, g_gameState.yOffset);
 
-    TEST_renderBackround(&g_gameState, graphicsBuffer);
+    TEST_renderBackround(graphicsBuffer, g_gameState.xOffset, g_gameState.yOffset);
 
     TEST_DrawRectangle(graphicsBuffer, keyboardState->mouseX, keyboardState->mouseY, 10, 10, 0xFFFFFF);
 
     DrawBitmap(graphicsBuffer, &g_gameState.testBitmap1, 50, 50);
     DrawBitmap(graphicsBuffer, &g_gameState.testBitmap2, g_gameState.testBitmap1.width + 50, 50);
 
-#if 0
+#if 1
+    static TEST_initAudio = true;
+    if (TEST_initAudio) {
+        TEST_initAudio = false;
+        PlaySound(&g_gameState.testWAVData1, true, g_gameState.audioChannels, TEST_AUDIO_CHANNEL_COUNT);
+    }
+
+    if (keyboardState->a.isDown && keyboardState->a.didChangeState) {
+        PlaySound(&g_gameState.testWAVData2, false, g_gameState.audioChannels, TEST_AUDIO_CHANNEL_COUNT);
+    }
+
+    if (keyboardState->s.isDown && keyboardState->s.didChangeState) {
+        StopSound(0, g_gameState.audioChannels);
+    }
+
+    ProcessSound(soundBuffer, g_gameState.audioChannels, TEST_AUDIO_CHANNEL_COUNT);
+#else 
     static f32 tSine = 0.0f;
     i16 toneVolume = 4000;
     i32 toneHz = keyboardState->w.isDown ? 523 : 262;
@@ -263,14 +338,6 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
         if (tSine > TWO_PI) {
             tSine -= TWO_PI;
         }
-    }
-#else
-    // CONTINUE HERE! Next up: audio mixing? (basic sound effects?)
-    i16* samples = soundBuffer->samples;
-    for (i32 i = 0; i < soundBuffer->samplesCount; ++i) {
-        *samples++ = g_gameState.testWAVData.samples[g_gameState.soundDataIndex++];
-        *samples++ = g_gameState.testWAVData.samples[g_gameState.soundDataIndex++];
-        g_gameState.soundDataIndex %= g_gameState.testWAVData.sampleCount;
     }
 #endif 
 }
