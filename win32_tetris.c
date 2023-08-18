@@ -104,6 +104,14 @@ b32 EngineWriteEntireFile(const char* filePath, const void* buffer, i32 bufferSi
     return bytesWritten == bufferSize;
 }
 
+void* EngineAllocate(i32 size) {
+    return VirtualAlloc(NULL, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+}
+
+void EngineFree(void* memory) {
+    VirtualFree(memory, 0, MEM_RELEASE);
+}
+
 static void ClearSoundBuffer(LPDIRECTSOUNDBUFFER* soundBuffer) {
     VOID* region1;
     DWORD region1Size;

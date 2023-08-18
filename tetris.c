@@ -190,18 +190,55 @@ static audio_buffer LoadWAV(const char* filePath) {
     if ((format.chunkID[0] != 'R' || format.chunkID[1] != 'I' || format.chunkID[2] != 'F' || format.chunkID[3] != 'F') || // "RIFF"
         (format.format[0] != 'W' || format.format[1] != 'A' || format.format[2] != 'V' || format.format[3] != 'E')     || // "WAVE"
         (format.audioFormat != 1)                                                                                      || // No compression
-        (format.numChannels != 2)                                                                                      || // Stereo audio
-        (format.sampleRate != 48000)                                                                                   ||
-        (format.bitsPerSample != 16))
+        (format.bitsPerSample != 16)                                                                                   || // Could probably solve this one
+        (format.numChannels >= 3))
     {
         return (audio_buffer){ 0 };
     }
 
-    // We never free the allocated data so this should be fine
     audio_buffer result = { 
         .samples = (u8*)contents + 44, // 44 is the size of the header before the data
         .sampleCount = format.subchunk2Size / 2 // subchunk2Size is in bytes
     };
+
+    if (format.sampleRate != 48000) {
+        f32 ratio = format.sampleRate / 48000.0f;
+
+        result.sampleCount /= ratio;
+        i16* buffer = EngineAllocate(result.sampleCount * 2);
+        if (!buffer) {
+            return (audio_buffer){ 0 };
+        }
+
+        for (i32 i = 0; i < result.sampleCount - 1; ++i) {
+            f32 t = i * ratio;
+            i32 index = (i32)t;
+            t -= index;
+
+            buffer[i] = (1.0f - t) * result.samples[index] + t * result.samples[index + format.numChannels];
+        }
+
+        result.samples = buffer;
+        EngineFree(contents);
+    }
+
+    if (format.numChannels == 1) {
+        i16* buffer = EngineAllocate(result.sampleCount * 4);
+        if (!buffer) {
+            return (audio_buffer){ 0 };
+        }
+
+        for (i32 i = 0; i < result.sampleCount; ++i) {
+            buffer[2 * i]     = result.samples[i];
+            buffer[2 * i + 1] = result.samples[i];
+        }
+
+        EngineFree(result.samples);
+        result.samples = buffer;
+        result.sampleCount *= 2;
+    }
+
+
     return result;
 }
 
@@ -262,12 +299,12 @@ static void ProcessSound(sound_buffer* soundBuffer, audio_channel* channels, i32
             }
         }
 
-        *samples++ = Clamp(sampleLeft,  -1.0f, 1.0f) * 32768.0f;
-        *samples++ = Clamp(sampleRight, -1.0f, 1.0f) * 32768.0f;
+        *samples++ = Clamp(sampleLeft,  -1.0f, 1.0f) * 32767.0f;
+        *samples++ = Clamp(sampleRight, -1.0f, 1.0f) * 32767.0f;
     }
 }
 
-#define TEST_AUDIO_CHANNEL_COUNT 8
+#define TEST_AUDIO_CHANNEL_COUNT 16
 
 typedef struct game_state {
     i32 xOffset;
@@ -287,7 +324,7 @@ void OnStartup(void) {
     g_gameState.testBitmap1  = LoadBMP("assets/OpacityTest.bmp");
     g_gameState.testBitmap2  = LoadBMP("assets/opacity_test.bmp");
     g_gameState.testWAVData1 = LoadWAV("assets/wav_test3.wav");
-    g_gameState.testWAVData2 = LoadWAV("assets/wav_test2.wav");
+    g_gameState.testWAVData2 = LoadWAV("assets/explosion.wav");
 }
 
 // Is there really a need for sound_buffer? Doesn't audio_buffer suffice?
@@ -301,7 +338,7 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
 
     TEST_renderBackround(graphicsBuffer, g_gameState.xOffset, g_gameState.yOffset);
 
-    TEST_DrawRectangle(graphicsBuffer, keyboardState->mouseX, keyboardState->mouseY, 10, 10, 0xFFFFFF);
+    TEST_DrawRectangle(graphicsBuffer, keyboardState->mouseX, keyboardState->mouseY, 16, 16, 0xFFFFFF);
 
     DrawBitmap(graphicsBuffer, &g_gameState.testBitmap1, 50, 50);
     DrawBitmap(graphicsBuffer, &g_gameState.testBitmap2, g_gameState.testBitmap1.width + 50, 50);

@@ -6,5 +6,7 @@
 
 extern void* EngineReadEntireFile(char* fileName, i32* bytesRead);
 extern b32 EngineWriteEntireFile(const char* fileName, const void* buffer, i32 bufferSize);
+extern void* EngineAllocate(i32 size);
+extern void EngineFree(void* memory);
 
 #endif
