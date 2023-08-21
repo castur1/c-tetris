@@ -400,8 +400,9 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
         .style = CS_HREDRAW | CS_VREDRAW,
         .lpfnWndProc = WndProc,
         .hInstance = instance,
-        .lpszClassName = "tetris window class"
-        // hIcon, hCursor
+        .lpszClassName = "tetris window class",
+        .hIcon = LoadImageA(0, "assets/icon_test.ico", IMAGE_ICON, 0, 0, LR_DEFAULTSIZE | LR_LOADFROMFILE),
+        .hCursor = LoadImageA(0, MAKEINTRESOURCE(IDC_ARROW), IMAGE_CURSOR, 0, 0, LR_DEFAULTSIZE | LR_SHARED),
     };
     if (!RegisterClass(&windowClass)) {
         return 1;
@@ -443,7 +444,8 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
 
     soundBytesPerFrame = secondsPerFrame * SOUND_SAMPLES_PER_SECOND * SOUND_BYTES_PER_SAMPLE;
 
-    InitBitmap(&g_bitmapBuffer, 960, 540);
+    // 960, 540 - 1280, 720 - 1920, 1080
+    InitBitmap(&g_bitmapBuffer, 1280, 720);
 
     keyboard_state keyboardState = { 0 };
 

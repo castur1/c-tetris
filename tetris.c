@@ -185,8 +185,6 @@ static audio_buffer LoadWAV(const char* filePath) {
 
     wav_format format = *(wav_format*)contents;
 
-    // If the WAV file's format doesn't match the game's internal audio format we don't want it
-    // Yes we do, make this more intelligent
     if ((format.chunkID[0] != 'R' || format.chunkID[1] != 'I' || format.chunkID[2] != 'F' || format.chunkID[3] != 'F') || // "RIFF"
         (format.format[0] != 'W' || format.format[1] != 'A' || format.format[2] != 'V' || format.format[3] != 'E')     || // "WAVE"
         (format.audioFormat != 1)                                                                                      || // No compression
@@ -255,7 +253,7 @@ typedef struct audio_channel {
     i16* samples;
     i32 samplesCount;
     i32 sampleIndex;
-    b32 isLooping; // Should this be here?
+    b32 isLooping;
 } audio_channel;
 
 static i32 PlaySound(audio_buffer* audioBuffer, b32 isLooping, audio_channel* channels, i32 channelsCount) {
@@ -304,13 +302,13 @@ static void ProcessSound(sound_buffer* soundBuffer, audio_channel* channels, i32
     }
 }
 
-#define TEST_AUDIO_CHANNEL_COUNT 16
+#define AUDIO_CHANNEL_COUNT 16
 
 typedef struct game_state {
     i32 xOffset;
     i32 yOffset;
 
-    audio_channel audioChannels[TEST_AUDIO_CHANNEL_COUNT];
+    audio_channel audioChannels[AUDIO_CHANNEL_COUNT];
 
     bitmap_buffer testBitmap1;
     bitmap_buffer testBitmap2;
@@ -325,6 +323,8 @@ void OnStartup(void) {
     g_gameState.testBitmap2  = LoadBMP("assets/opacity_test.bmp");
     g_gameState.testWAVData1 = LoadWAV("assets/wav_test3.wav");
     g_gameState.testWAVData2 = LoadWAV("assets/explosion.wav");
+
+    PlaySound(&g_gameState.testWAVData1, true, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
 }
 
 // Is there really a need for sound_buffer? Doesn't audio_buffer suffice?
@@ -332,10 +332,9 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
     f32 scrollSpeed = 256.0f;
     g_gameState.xOffset += (keyboardState->d.isDown - keyboardState->a.isDown) * scrollSpeed * deltaTime;
     g_gameState.yOffset += (keyboardState->w.isDown - keyboardState->s.isDown) * scrollSpeed * deltaTime;  
-
     g_gameState.xOffset = Max(0, g_gameState.xOffset);
     g_gameState.yOffset = Max(0, g_gameState.yOffset);
-
+    
     TEST_renderBackround(graphicsBuffer, g_gameState.xOffset, g_gameState.yOffset);
 
     TEST_DrawRectangle(graphicsBuffer, keyboardState->mouseX, keyboardState->mouseY, 16, 16, 0xFFFFFF);
@@ -343,38 +342,14 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
     DrawBitmap(graphicsBuffer, &g_gameState.testBitmap1, 50, 50);
     DrawBitmap(graphicsBuffer, &g_gameState.testBitmap2, g_gameState.testBitmap1.width + 50, 50);
 
-#if 1
-    static TEST_initAudio = true;
-    if (TEST_initAudio) {
-        TEST_initAudio = false;
-        PlaySound(&g_gameState.testWAVData1, true, g_gameState.audioChannels, TEST_AUDIO_CHANNEL_COUNT);
-    }
-
     if (keyboardState->a.isDown && keyboardState->a.didChangeState) {
-        PlaySound(&g_gameState.testWAVData2, false, g_gameState.audioChannels, TEST_AUDIO_CHANNEL_COUNT);
+        PlaySound(&g_gameState.testWAVData2, false, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
     }
 
     if (keyboardState->s.isDown && keyboardState->s.didChangeState) {
         StopSound(0, g_gameState.audioChannels);
     }
 
-    ProcessSound(soundBuffer, g_gameState.audioChannels, TEST_AUDIO_CHANNEL_COUNT);
-#else 
-    static f32 tSine = 0.0f;
-    i16 toneVolume = 4000;
-    i32 toneHz = keyboardState->w.isDown ? 523 : 262;
-    i32 wavePeriod = soundBuffer->samplesPerSecond / toneHz;
 
-    i16* samples = soundBuffer->samples;
-    for (i32 sampleIndex = 0; sampleIndex < soundBuffer->samplesCount; ++sampleIndex) {
-        i16 sampleValue = toneVolume * sinf(tSine);
-        *samples++ = sampleValue;
-        *samples++ = sampleValue;
-
-        tSine += TWO_PI / wavePeriod;
-        if (tSine > TWO_PI) {
-            tSine -= TWO_PI;
-        }
-    }
-#endif 
+    ProcessSound(soundBuffer, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
 }
