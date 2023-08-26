@@ -140,10 +140,14 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="tetris.c" />
+    <ClCompile Include="tetris_graphics.c" />
+    <ClCompile Include="tetris_sound.c" />
     <ClCompile Include="win32_tetris.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="tetris.h" />
+    <ClInclude Include="tetris_graphics.h" />
+    <ClInclude Include="tetris_sound.h" />
     <ClInclude Include="tetris_types.h" />
     <ClInclude Include="tetris_utility.h" />
     <ClInclude Include="win32_tetris.h" />

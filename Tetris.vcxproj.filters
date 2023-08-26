@@ -21,6 +21,12 @@
     <ClCompile Include="tetris.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="tetris_graphics.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="tetris_sound.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="tetris_types.h">
@@ -33,6 +39,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="win32_tetris.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="tetris_graphics.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="tetris_sound.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
