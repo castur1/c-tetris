@@ -22,11 +22,11 @@ typedef struct wav_format {
 } wav_format;
 #pragma pack(pop)
 
-audio_buffer LoadWAV(const char* filePath) {
+sound_buffer LoadWAV(const char* filePath) {
     i32 bytesRead;
     void* contents = EngineReadEntireFile(filePath, &bytesRead);
     if (bytesRead == 0) {
-        return (audio_buffer){ 0 };
+        return (sound_buffer){ 0 };
     }
 
     wav_format format = *(wav_format*)contents;
@@ -37,25 +37,24 @@ audio_buffer LoadWAV(const char* filePath) {
         (format.bitsPerSample != 16)                                                                                   || // Could probably solve this one
         (format.numChannels >= 3))
     {
-        return (audio_buffer){ 0 };
+        return (sound_buffer){ 0 };
     }
 
-    audio_buffer result = { 
+    sound_buffer result = { 
         .samples = (u8*)contents + 44, // 44 is the size of the header before the data
-        .sampleCount = format.subchunk2Size / 2 // subchunk2Size is in bytes
+        .samplesCount = format.subchunk2Size / 2 // subchunk2Size is in bytes
     };
 
-    // Should the sample rate really be fixed?
-    if (format.sampleRate != 48000) {
-        f32 ratio = format.sampleRate / 48000.0f;
+    if (format.sampleRate != SOUND_SAMPLES_PER_SECOND) {
+        f32 ratio = format.sampleRate / (f32)SOUND_SAMPLES_PER_SECOND;
 
-        result.sampleCount /= ratio;
-        i16* buffer = EngineAllocate(result.sampleCount * 2);
+        result.samplesCount /= ratio;
+        i16* buffer = EngineAllocate(result.samplesCount * 2);
         if (!buffer) {
-            return (audio_buffer){ 0 };
+            return (sound_buffer){ 0 };
         }
 
-        for (i32 i = 0; i < result.sampleCount - 1; ++i) {
+        for (i32 i = 0; i < result.samplesCount - 1; ++i) {
             f32 t = i * ratio;
             i32 index = (i32)t;
             t -= index;
@@ -68,31 +67,31 @@ audio_buffer LoadWAV(const char* filePath) {
     }
 
     if (format.numChannels == 1) {
-        i16* buffer = EngineAllocate(result.sampleCount * 4);
+        i16* buffer = EngineAllocate(result.samplesCount * 4);
         if (!buffer) {
-            return (audio_buffer){ 0 };
+            return (sound_buffer){ 0 };
         }
 
-        for (i32 i = 0; i < result.sampleCount; ++i) {
+        for (i32 i = 0; i < result.samplesCount; ++i) {
             buffer[2 * i]     = result.samples[i];
             buffer[2 * i + 1] = result.samples[i];
         }
 
         EngineFree(result.samples);
         result.samples = buffer;
-        result.sampleCount *= 2;
+        result.samplesCount *= 2;
     }
 
 
     return result;
 }
 
-i32 PlaySound(audio_buffer* audioBuffer, b32 isLooping, audio_channel* channels, i32 channelsCount) {
+i32 PlaySound(sound_buffer* audioBuffer, b32 isLooping, audio_channel* channels, i32 channelsCount) {
     for (i32 i = 0; i < channelsCount; ++i) {
         if (!channels[i].samples) {
             channels[i] = (audio_channel){
                 .samples = audioBuffer->samples,
-                .samplesCount = audioBuffer->sampleCount,
+                .samplesCount = audioBuffer->samplesCount,
                 .sampleIndex = 0,
                 .isLooping = isLooping
             };

@@ -18,7 +18,6 @@ typedef struct bitmap_buffer {
 typedef struct sound_buffer {
     i16* samples;
     i32 samplesCount;
-    i32 samplesPerSecond;
 } sound_buffer;
 
 typedef struct keyboard_key_state {

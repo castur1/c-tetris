@@ -10,12 +10,6 @@
 #include <math.h>
 
 
-// Should these really be macros? Yeah, probably
-#define SOUND_SAMPLES_PER_SECOND 48000
-#define SOUND_BYTES_PER_SAMPLE 4
-#define SOUND_BUFFER_SIZE (i32)(2.0f * SOUND_SAMPLES_PER_SECOND)
-
-
 typedef struct win32_bitmap {
     BITMAPINFO info;
     void* memory;
@@ -433,7 +427,7 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
     LARGE_INTEGER performanceFrequence;
     QueryPerformanceFrequency(&performanceFrequence);
 
-    i32 refreshRate = 60; // 60 FPS pog?
+    i32 refreshRate = 60;
     i32 screenRefreshRate = GetDeviceCaps(deviceContext, VREFRESH);
     if (screenRefreshRate > 1 && screenRefreshRate < refreshRate) {
         refreshRate = screenRefreshRate;
@@ -444,8 +438,7 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
 
     soundBytesPerFrame = secondsPerFrame * SOUND_SAMPLES_PER_SECOND * SOUND_BYTES_PER_SAMPLE;
 
-    // 960, 540 - 1280, 720 - 1920, 1080
-    InitBitmap(&g_bitmapBuffer, 1280, 720);
+    InitBitmap(&g_bitmapBuffer, BITMAP_WIDTH, BITMAP_HEIGHT);
 
     keyboard_state keyboardState = { 0 };
 
@@ -487,8 +480,7 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
 
         sound_buffer soundBuffer = {
             .samples = soundSamples,
-            .samplesCount = bytesToWrite / SOUND_BYTES_PER_SAMPLE,
-            .samplesPerSecond = SOUND_SAMPLES_PER_SECOND
+            .samplesCount = bytesToWrite / SOUND_BYTES_PER_SAMPLE
         };
 
         bitmap_buffer graphicsBuffer = {
