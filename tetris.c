@@ -174,6 +174,24 @@ static void TEST_DrawBoard(bitmap_buffer* graphicsBuffer, board_t* board) {
     }
 }
 
+static void RandomizeBag(tetromino_type* bag) {
+    bag[0] = bag[7];
+    for (i32 i = 1; i < 7;) {
+        i32 attempt = RandomI32InRange(1, 7);
+        for (i32 j = 0; j < i; ++j) {
+            if (bag[j] == attempt) {
+                attempt = 0;
+                break;
+            }
+        }
+        if (attempt == 0) {
+            continue;
+        }
+        bag[i++] = attempt;
+    }
+    bag[7] = RandomI32InRange(1, 7);
+}
+
 typedef struct game_state {
     i32 xOffset;
     i32 yOffset;
@@ -182,6 +200,8 @@ typedef struct game_state {
 
     board_t board;
     tetromino_t curr;
+    tetromino_type bag[8];
+    i32 bagIndex;
 
     audio_channel audioChannels[AUDIO_CHANNEL_COUNT];
 
@@ -208,7 +228,10 @@ void OnStartup(void) {
     SetBoardTileSize(&g_gameState.board, BITMAP_HEIGHT / (f32)g_gameState.board.height);
     SetBoardPos(&g_gameState.board, (BITMAP_WIDTH - g_gameState.board.widthPx) / 2, 0);
 
-    g_gameState.curr = InitTetromino(RandomI32InRange(1, 7), 0, 3, 16);
+    g_gameState.bag[7] = RandomI32InRange(1, 7);
+    RandomizeBag(g_gameState.bag);
+
+    g_gameState.curr = InitTetromino(g_gameState.bag[g_gameState.bagIndex++], 0, 3, 16);
 }
 
 void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
@@ -279,7 +302,11 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
                 --y;
             }
 
-            g_gameState.curr = InitTetromino(RandomI32InRange(1, 7), 0, 3, 16);
+            g_gameState.curr = InitTetromino(g_gameState.bag[g_gameState.bagIndex++], 0, 3, 16);
+            if (g_gameState.bagIndex >= 7) {
+                g_gameState.bagIndex = 0;
+                RandomizeBag(g_gameState.bag);
+            }
 
             if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.curr)) {
                 for (i32 i = 0; i < g_gameState.board.size; ++i) {
