@@ -1,6 +1,7 @@
 #include "tetris.h"
 #include "tetris_graphics.h"
 #include "tetris_sound.h"
+#include "tetris_random.h"
 
 
 #define AUDIO_CHANNEL_COUNT 16
@@ -144,6 +145,23 @@ static void TEST_DrawTetrominoInBoard(bitmap_buffer* graphicsBuffer, board_t* bo
     }
 }
 
+static b32 IsTetrominoPosValid(board_t* board, tetromino_t* tetromino) {
+    u16 bitField = TETROMINOES[tetromino->type][tetromino->rotation];
+    for (i32 i = 0; i < 16; ++i) { 
+        if (bitField & (1 << i)) {
+            i32 x = tetromino->x + (i % 4);
+            i32 y = tetromino->y + (i / 4);
+            if (x < 0 || x >= board->width || y < 0 || \
+                board->tiles[y * board->width + x] != tetromino_type_empty) 
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
 static void TEST_DrawBoard(bitmap_buffer* graphicsBuffer, board_t* board) {
     for (i32 y = 0; y < board->height; ++y) {
         for (i32 x = 0; x < board->width; ++x) {
@@ -184,41 +202,95 @@ void OnStartup(void) {
 
     PlaySound(&g_gameState.testWAVData1, true, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
 
+    RandomInit();
+
     g_gameState.board = InitBoard(BOARD_WIDTH, BOARD_HEIGHT, 0, 0, 0);
     SetBoardTileSize(&g_gameState.board, BITMAP_HEIGHT / (f32)g_gameState.board.height);
     SetBoardPos(&g_gameState.board, (BITMAP_WIDTH - g_gameState.board.widthPx) / 2, 0);
 
-    g_gameState.curr = InitTetromino(tetromino_type_L, 0, 3, 16);
+    g_gameState.curr = InitTetromino(RandomI32InRange(1, 7), 0, 3, 16);
 }
 
 void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
     f32 scrollSpeed = 256.0f;
-    g_gameState.xOffset += (keyboardState->d.isDown - keyboardState->a.isDown) * scrollSpeed * deltaTime;
-    g_gameState.yOffset += (keyboardState->w.isDown - keyboardState->s.isDown) * scrollSpeed * deltaTime;  
+    g_gameState.xOffset += (keyboardState->right.isDown - keyboardState->left.isDown) * scrollSpeed * deltaTime;
+    g_gameState.yOffset += (keyboardState->up.isDown - keyboardState->down.isDown) * scrollSpeed * deltaTime;  
     g_gameState.xOffset = Max(0, g_gameState.xOffset);
     g_gameState.yOffset = Max(0, g_gameState.yOffset);
     
     TEST_renderBackround(graphicsBuffer, g_gameState.xOffset, g_gameState.yOffset);
 
-    // CONTINUE HERE! Collision detection next (and also refactoring oc)
 #if 1
+    if (keyboardState->right.isDown && keyboardState->right.didChangeState) {
+        ++g_gameState.curr.x;
+        if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.curr)) {
+            --g_gameState.curr.x;
+        }
+    }
+    else if (keyboardState->left.isDown && keyboardState->left.didChangeState) {
+        --g_gameState.curr.x;
+        if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.curr)) {
+            ++g_gameState.curr.x;
+        }
+    }
+
+    if (keyboardState->x.isDown && keyboardState->x.didChangeState) {
+        g_gameState.curr.rotation = (g_gameState.curr.rotation + 5) % 4;
+        if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.curr)) {
+            g_gameState.curr.rotation = (g_gameState.curr.rotation + 3) % 4;
+        }
+    }
+    else if (keyboardState->z.isDown && keyboardState->z.didChangeState) {
+        g_gameState.curr.rotation = (g_gameState.curr.rotation + 3) % 4;
+        if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.curr)) {
+            g_gameState.curr.rotation = (g_gameState.curr.rotation + 5) % 4;
+        }
+    }
+
+    f32 TEST_fallDelay = keyboardState->down.isDown ? 0.05f : 0.5f;
+
     g_gameState.ft += deltaTime;
-    if (g_gameState.ft >= 0.6f) {
+    if (g_gameState.ft >= TEST_fallDelay) {
         g_gameState.ft = 0.0f;
 
-        if (g_gameState.curr.y == 0) {
-            TEST_PlaceTetromino(&g_gameState.board, &g_gameState.curr);
-            g_gameState.curr = InitTetromino(((g_gameState.curr.x + 7) % 7) + 1, 0, 3, 16);
-        }
-
         --g_gameState.curr.y;
+        if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.curr)) {
+            ++g_gameState.curr.y;
+            TEST_PlaceTetromino(&g_gameState.board, &g_gameState.curr);
+
+            i32 y = g_gameState.curr.y + 3;
+            while (y >= 0 && y >= g_gameState.curr.y) {
+                b32 isLineClear = true;
+                for (i32 x = 0; x < g_gameState.board.width; ++x) {
+                    if (g_gameState.board.tiles[y * g_gameState.board.width + x] == tetromino_type_empty) {
+                        isLineClear = false;
+                        break;
+                    }
+                }
+
+                if (isLineClear) {
+                    for (i32 i = y; i < g_gameState.board.height - 1; ++i) {
+                        for (i32 j = 0; j < g_gameState.board.width; ++j) {
+                            g_gameState.board.tiles[i * g_gameState.board.width + j] = g_gameState.board.tiles[(i + 1) * g_gameState.board.width + j];
+                        }
+                    }
+                }
+
+                --y;
+            }
+
+            g_gameState.curr = InitTetromino(RandomI32InRange(1, 7), 0, 3, 16);
+
+            if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.curr)) {
+                for (i32 i = 0; i < g_gameState.board.size; ++i) {
+                    g_gameState.board.tiles[i] = tetromino_type_empty;
+                }
+            }
+        }
     }
 
     DrawRectangle(graphicsBuffer, g_gameState.board.x, g_gameState.board.y, g_gameState.board.widthPx, g_gameState.board.heightPx, TETROMINO_COLOURS[tetromino_type_empty]);
     TEST_DrawBoard(graphicsBuffer, &g_gameState.board);
-
-    g_gameState.curr.x += (keyboardState->d.isDown && keyboardState->d.didChangeState) - (keyboardState->a.isDown && keyboardState->a.didChangeState);
-    g_gameState.curr.rotation = (g_gameState.curr.rotation + (keyboardState->w.isDown && keyboardState->w.didChangeState) - (keyboardState->s.isDown && keyboardState->s.didChangeState) + 4) % 4;
     TEST_DrawTetrominoInBoard(graphicsBuffer, &g_gameState.board, &g_gameState.curr);
 #endif
 
@@ -227,14 +299,9 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
     DrawBitmap(graphicsBuffer, &g_gameState.testBitmap1, 50, 50);
     DrawBitmap(graphicsBuffer, &g_gameState.testBitmap2, g_gameState.testBitmap1.width + 50, 50);
 
-    if (keyboardState->a.isDown && keyboardState->a.didChangeState) {
+    if (keyboardState->up.isDown && keyboardState->up.didChangeState) {
         PlaySound(&g_gameState.testWAVData2, false, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
     }
-
-    if (keyboardState->s.isDown && keyboardState->s.didChangeState) {
-        StopSound(0, g_gameState.audioChannels);
-    }
-
 
     ProcessSound(soundBuffer, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
 }

@@ -38,12 +38,14 @@ typedef struct keyboard_state {
 
     union {
         struct {
-            keyboard_key_state w;
-            keyboard_key_state a;
-            keyboard_key_state s;
-            keyboard_key_state d;
+            keyboard_key_state up;
+            keyboard_key_state down;
+            keyboard_key_state left;
+            keyboard_key_state right;
+            keyboard_key_state z;
+            keyboard_key_state x;
         };
-        keyboard_key_state keys[4];
+        keyboard_key_state keys[6];
     };
 } keyboard_state;
 

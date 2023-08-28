@@ -48,6 +48,12 @@ static void ToggleFullscreen(HWND window) {
     }
 }
 
+system_time EngineGetSystemTime(void) {
+    SYSTEMTIME time;
+    GetSystemTime(&time);
+    return *(system_time*)&time;
+}
+
 void* EngineReadEntireFile(const char* filePath, i32* bytesRead) {
     HANDLE fileHandle = CreateFileA(filePath, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (fileHandle == INVALID_HANDLE_VALUE) {
@@ -297,18 +303,23 @@ ProcessPendingMessages(HWND window, win32_bitmap* bitmapBuffer, keyboard_state* 
                                 ToggleFullscreen(window);
                             }
                         } break;
-                        // Is there a better solution?
-                        case 'W': {
-                            UpdateKeyboardKey(&keyboardState->w, isDown);
+                        case VK_UP: {
+                            UpdateKeyboardKey(&keyboardState->up, isDown);
                         } break;
-                        case 'A': {
-                            UpdateKeyboardKey(&keyboardState->a, isDown);
+                        case VK_DOWN: {
+                            UpdateKeyboardKey(&keyboardState->down, isDown);
                         } break;
-                        case 'S': {
-                            UpdateKeyboardKey(&keyboardState->s, isDown);
+                        case VK_LEFT: {
+                            UpdateKeyboardKey(&keyboardState->left, isDown);
                         } break;
-                        case 'D': {
-                            UpdateKeyboardKey(&keyboardState->d, isDown);
+                        case VK_RIGHT: {
+                            UpdateKeyboardKey(&keyboardState->right, isDown);
+                        } break;
+                        case 'Z': {
+                            UpdateKeyboardKey(&keyboardState->z, isDown);
+                        } break;
+                        case 'X': {
+                            UpdateKeyboardKey(&keyboardState->x, isDown);
                         } break;
                     }
                 }

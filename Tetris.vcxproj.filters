@@ -27,6 +27,9 @@
     <ClCompile Include="tetris_sound.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="tetris_random.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="tetris_types.h">
@@ -45,6 +48,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="tetris_sound.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="tetris_random.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

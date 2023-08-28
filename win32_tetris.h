@@ -13,6 +13,19 @@
 #define BITMAP_HEIGHT 720
 
 
+typedef struct sytem_time {
+    u16 year;
+    u16 month;
+    u16 dayOfWeek;
+    u16 day;
+    u16 hour;
+    u16 minute;
+    u16 second;
+    u16 millisecond;
+} system_time;
+
+
+extern system_time EngineGetSystemTime(void);
 extern void* EngineReadEntireFile(char* fileName, i32* bytesRead);
 extern b32 EngineWriteEntireFile(const char* fileName, const void* buffer, i32 bufferSize);
 extern void* EngineAllocate(i32 size);
