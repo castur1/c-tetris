@@ -199,7 +199,10 @@ typedef struct game_state {
     f32 ft;
 
     board_t board;
-    tetromino_t curr;
+    tetromino_t current;
+    tetromino_t next;
+    tetromino_t hold;
+    b32 didSwitchHeld;
     tetromino_type bag[8];
     i32 bagIndex;
 
@@ -231,7 +234,9 @@ void OnStartup(void) {
     g_gameState.bag[7] = RandomI32InRange(1, 7);
     RandomizeBag(g_gameState.bag);
 
-    g_gameState.curr = InitTetromino(g_gameState.bag[g_gameState.bagIndex++], 0, 3, 16);
+    g_gameState.current = InitTetromino(g_gameState.bag[g_gameState.bagIndex++], 0, 3, 16);
+    g_gameState.next = InitTetromino(g_gameState.bag[g_gameState.bagIndex++], 0, g_gameState.board.x + g_gameState.board.widthPx + 50, 50);
+    g_gameState.hold = InitTetromino(tetromino_type_empty, 0, g_gameState.board.x + g_gameState.board.widthPx + 50, 250);
 }
 
 void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
@@ -245,29 +250,46 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
 
 #if 1
     if (keyboardState->right.isDown && keyboardState->right.didChangeState) {
-        ++g_gameState.curr.x;
-        if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.curr)) {
-            --g_gameState.curr.x;
+        ++g_gameState.current.x;
+        if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
+            --g_gameState.current.x;
         }
     }
     else if (keyboardState->left.isDown && keyboardState->left.didChangeState) {
-        --g_gameState.curr.x;
-        if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.curr)) {
-            ++g_gameState.curr.x;
+        --g_gameState.current.x;
+        if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
+            ++g_gameState.current.x;
         }
     }
 
     if (keyboardState->x.isDown && keyboardState->x.didChangeState) {
-        g_gameState.curr.rotation = (g_gameState.curr.rotation + 5) % 4;
-        if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.curr)) {
-            g_gameState.curr.rotation = (g_gameState.curr.rotation + 3) % 4;
+        g_gameState.current.rotation = (g_gameState.current.rotation + 5) % 4;
+        if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
+            g_gameState.current.rotation = (g_gameState.current.rotation + 3) % 4;
         }
     }
     else if (keyboardState->z.isDown && keyboardState->z.didChangeState) {
-        g_gameState.curr.rotation = (g_gameState.curr.rotation + 3) % 4;
-        if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.curr)) {
-            g_gameState.curr.rotation = (g_gameState.curr.rotation + 5) % 4;
+        g_gameState.current.rotation = (g_gameState.current.rotation + 3) % 4;
+        if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
+            g_gameState.current.rotation = (g_gameState.current.rotation + 5) % 4;
         }
+    }
+
+    if (keyboardState->c.isDown && keyboardState->c.didChangeState && !g_gameState.didSwitchHeld) {
+        g_gameState.didSwitchHeld = true;
+
+        tetromino_type temp = g_gameState.current.type;
+        if (g_gameState.hold.type == tetromino_type_empty) {
+            g_gameState.current = InitTetromino(g_gameState.bag[g_gameState.bagIndex++], 0, 3, 16);
+            if (g_gameState.bagIndex >= 7) {
+                g_gameState.bagIndex = 0;
+                RandomizeBag(g_gameState.bag);
+            }
+        }
+        else {
+            g_gameState.current = InitTetromino(g_gameState.hold.type, 0, 3, 16);
+        }
+        g_gameState.hold.type = temp;
     }
 
     f32 TEST_fallDelay = keyboardState->down.isDown ? 0.05f : 0.5f;
@@ -276,13 +298,13 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
     if (g_gameState.ft >= TEST_fallDelay) {
         g_gameState.ft = 0.0f;
 
-        --g_gameState.curr.y;
-        if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.curr)) {
-            ++g_gameState.curr.y;
-            TEST_PlaceTetromino(&g_gameState.board, &g_gameState.curr);
+        --g_gameState.current.y;
+        if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
+            ++g_gameState.current.y;
+            TEST_PlaceTetromino(&g_gameState.board, &g_gameState.current);
 
-            i32 y = g_gameState.curr.y + 3;
-            while (y >= 0 && y >= g_gameState.curr.y) {
+            i32 y = g_gameState.current.y + 3;
+            while (y >= 0 && y >= g_gameState.current.y) {
                 b32 isLineClear = true;
                 for (i32 x = 0; x < g_gameState.board.width; ++x) {
                     if (g_gameState.board.tiles[y * g_gameState.board.width + x] == tetromino_type_empty) {
@@ -297,28 +319,42 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
                             g_gameState.board.tiles[i * g_gameState.board.width + j] = g_gameState.board.tiles[(i + 1) * g_gameState.board.width + j];
                         }
                     }
+                    PlaySound(&g_gameState.testWAVData2, false, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
                 }
 
                 --y;
             }
 
-            g_gameState.curr = InitTetromino(g_gameState.bag[g_gameState.bagIndex++], 0, 3, 16);
+            g_gameState.current = InitTetromino(g_gameState.next.type, 0, 3, 16);
+            g_gameState.next.type = g_gameState.bag[g_gameState.bagIndex++];
             if (g_gameState.bagIndex >= 7) {
                 g_gameState.bagIndex = 0;
                 RandomizeBag(g_gameState.bag);
             }
 
-            if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.curr)) {
+            if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
                 for (i32 i = 0; i < g_gameState.board.size; ++i) {
                     g_gameState.board.tiles[i] = tetromino_type_empty;
                 }
             }
+
+            g_gameState.didSwitchHeld = false;
         }
     }
 
-    DrawRectangle(graphicsBuffer, g_gameState.board.x, g_gameState.board.y, g_gameState.board.widthPx, g_gameState.board.heightPx, TETROMINO_COLOURS[tetromino_type_empty]);
+    DrawRectangle(graphicsBuffer, g_gameState.board.x - 10, g_gameState.board.y, g_gameState.board.widthPx + 20, g_gameState.board.heightPx, TETROMINO_COLOURS[tetromino_type_empty]);
     TEST_DrawBoard(graphicsBuffer, &g_gameState.board);
-    TEST_DrawTetrominoInBoard(graphicsBuffer, &g_gameState.board, &g_gameState.curr);
+
+    TEST_DrawTetrominoInBoard(graphicsBuffer, &g_gameState.board, &g_gameState.current);
+
+    DrawRectangle(graphicsBuffer, g_gameState.next.x - 10, g_gameState.next.y - 10, \
+        4 * g_gameState.board.tileSize + 20, 4 * g_gameState.board.tileSize + 20, RGBToU32(0, 0, 0));
+    TEST_DrawTetrominoInScreen(graphicsBuffer, &g_gameState.next, g_gameState.board.tileSize);
+
+    u32 TEST_colour = g_gameState.didSwitchHeld ? RGBToU32(64, 64, 64) : RGBToU32(0, 0, 0);
+    DrawRectangle(graphicsBuffer, g_gameState.hold.x - 10, g_gameState.hold.y - 10, \
+        4 * g_gameState.board.tileSize + 20, 4 * g_gameState.board.tileSize + 20, TEST_colour);
+    TEST_DrawTetrominoInScreen(graphicsBuffer, &g_gameState.hold, g_gameState.board.tileSize);
 #endif
 
     DrawRectangle(graphicsBuffer, keyboardState->mouseX, keyboardState->mouseY, 16, 16, 0xFFFFFF);

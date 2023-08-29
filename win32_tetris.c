@@ -321,6 +321,9 @@ ProcessPendingMessages(HWND window, win32_bitmap* bitmapBuffer, keyboard_state* 
                         case 'X': {
                             UpdateKeyboardKey(&keyboardState->x, isDown);
                         } break;
+                        case 'C': {
+                            UpdateKeyboardKey(&keyboardState->c, isDown);
+                        } break;
                     }
                 }
             } break;
