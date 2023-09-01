@@ -9,6 +9,11 @@
 #define BOARD_WIDTH  10
 #define BOARD_HEIGHT 20
 
+#define AUTO_MOVE_DELAY 0.25f
+#define AUTO_MOVE_SPEED 0.08f
+
+#define PRESSED(key) (key.isDown && key.didChangeState)
+
 
 static void TEST_renderBackround(bitmap_buffer* graphicsBuffer, i32 xOffset, i32 yOffset) {
     u32* pixel = graphicsBuffer->memory;
@@ -95,9 +100,10 @@ static void SetBoardTileSize(board_t* board, i32 tileSize) {
     board->heightPx = board->height * tileSize;
 }
 
-static void SetBoardPos(board_t* board, i32 x, i32 y) {
-    board->x = x;
-    board->y = y;
+static void ClearBoard(board_t* board) {
+    for (i32 i = 0; i < board->size; ++i) {
+        board->tiles[i] = tetromino_type_empty;
+    }
 }
 
 typedef struct tetromino_t {
@@ -145,6 +151,18 @@ static void TEST_DrawTetrominoInBoard(bitmap_buffer* graphicsBuffer, board_t* bo
     }
 }
 
+static void TEST_DrawBoard(bitmap_buffer* graphicsBuffer, board_t* board) {
+    for (i32 y = 0; y < board->height; ++y) {
+        for (i32 x = 0; x < board->width; ++x) {
+            tetromino_type tile = board->tiles[y * board->width + x];
+            if (tile != tetromino_type_empty) {
+                DrawRectangle(graphicsBuffer, board->x + x * board->tileSize, board->y + y * board->tileSize, \
+                    board->tileSize, board->tileSize, TETROMINO_COLOURS[tile]);
+            }
+        }
+    }
+}
+
 static b32 IsTetrominoPosValid(board_t* board, tetromino_t* tetromino) {
     u16 bitField = TETROMINOES[tetromino->type][tetromino->rotation];
     for (i32 i = 0; i < 16; ++i) { 
@@ -162,16 +180,32 @@ static b32 IsTetrominoPosValid(board_t* board, tetromino_t* tetromino) {
     return true;
 }
 
-static void TEST_DrawBoard(bitmap_buffer* graphicsBuffer, board_t* board) {
-    for (i32 y = 0; y < board->height; ++y) {
+static b32 ProcessLineClears(board_t* board, tetromino_t* tetromino) {
+    b32 didClearLines = false;
+
+    i32 y = tetromino->y + 3;
+    while (y >= 0 && y >= tetromino->y) {
+        b32 isLineClear = true;
         for (i32 x = 0; x < board->width; ++x) {
-            tetromino_type tile = board->tiles[y * board->width + x];
-            if (tile != tetromino_type_empty) {
-                DrawRectangle(graphicsBuffer, board->x + x * board->tileSize, board->y + y * board->tileSize, \
-                    board->tileSize, board->tileSize, TETROMINO_COLOURS[tile]);
+            if (board->tiles[y * board->width + x] == tetromino_type_empty) {
+                isLineClear = false;
+                break;
             }
         }
+
+        if (isLineClear) {
+            didClearLines = true;
+            for (i32 i = y; i < board->height - 1; ++i) {
+                for (i32 j = 0; j < board->width; ++j) {
+                    board->tiles[i * board->width + j] = board->tiles[(i + 1) * board->width + j];
+                }
+            }
+        }
+
+        --y;
     }
+
+    return didClearLines;
 }
 
 static void RandomizeBag(tetromino_type* bag) {
@@ -192,65 +226,73 @@ static void RandomizeBag(tetromino_type* bag) {
     bag[7] = RandomI32InRange(1, 7);
 }
 
+static tetromino_type GetNextTetrominoFromBag(tetromino_type* bag, i32* bagIndex) {
+    tetromino_type result = bag[(*bagIndex)++];
+
+    if (*bagIndex >= 7) {
+        *bagIndex = 0;
+        RandomizeBag(bag);
+    }
+
+    return result;
+}
+
 typedef struct game_state {
-    f32 fallSpeed;
-    f32 autoMoveDelay;
-    f32 autoMoveSpeed;
+    f32 timerFallSpeed;
+    f32 timerAutoMoveDelay;
+    f32 timerAutoMoveSpeed;
 
     board_t board;
     tetromino_t current;
     tetromino_t next;
     tetromino_t hold;
-    b32 didSwitchHeld;
+    b32 didUseHoldBox;
     tetromino_type bag[8];
     i32 bagIndex;
 
     audio_channel audioChannels[AUDIO_CHANNEL_COUNT];
+} game_state;
 
-    // These aren't really part of the game state, are they?
+typedef struct game_data {
     bitmap_buffer testBitmap1;
     bitmap_buffer testBitmap2;
     sound_buffer testWAVData1;
     sound_buffer testWAVData2;
-} game_state;
+} game_data;
 
 static game_state g_gameState;
+static game_data g_gameData;
 
 void OnStartup(void) {
-    g_gameState.testBitmap1  = LoadBMP("assets/OpacityTest.bmp");
-    g_gameState.testBitmap2  = LoadBMP("assets/opacity_test.bmp");
-    g_gameState.testWAVData1 = LoadWAV("assets/wav_test3.wav");
-    g_gameState.testWAVData2 = LoadWAV("assets/explosion.wav");
+    g_gameData.testBitmap1  = LoadBMP("assets/OpacityTest.bmp");
+    g_gameData.testBitmap2  = LoadBMP("assets/opacity_test.bmp");
+    g_gameData.testWAVData1 = LoadWAV("assets/wav_test3.wav");
+    g_gameData.testWAVData2 = LoadWAV("assets/explosion.wav");
 
-    PlaySound(&g_gameState.testWAVData1, true, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
+    PlaySound(&g_gameData.testWAVData1, true, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
 
     RandomInit();
 
     g_gameState.board = InitBoard(BOARD_WIDTH, BOARD_HEIGHT, 0, 0, 0);
     SetBoardTileSize(&g_gameState.board, BITMAP_HEIGHT / (f32)g_gameState.board.height);
-    SetBoardPos(&g_gameState.board, (BITMAP_WIDTH - g_gameState.board.widthPx) / 2, 0);
+    g_gameState.board.x = (BITMAP_WIDTH - g_gameState.board.widthPx) / 2;
 
     g_gameState.bag[7] = RandomI32InRange(1, 7);
     RandomizeBag(g_gameState.bag);
 
-    g_gameState.current = InitTetromino(g_gameState.bag[g_gameState.bagIndex++], 0, 3, 16);
+    g_gameState.current = InitTetromino(g_gameState.bag[g_gameState.bagIndex++], 0, BOARD_WIDTH / 2 - 2, BOARD_HEIGHT - 4);
     g_gameState.next = InitTetromino(g_gameState.bag[g_gameState.bagIndex++], 0, g_gameState.board.x + g_gameState.board.widthPx + 50, 50);
     g_gameState.hold = InitTetromino(tetromino_type_empty, 0, g_gameState.board.x + g_gameState.board.widthPx + 50, 250);
 }
 
-#define AUTO_MOVE_DELAY 0.25f
-#define AUTO_MOVE_SPEED 0.08f
-
 void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
-    TEST_renderBackround(graphicsBuffer, 0, 0);
-
     if (keyboardState->right.isDown) {
-        g_gameState.autoMoveDelay += deltaTime;
-        if (g_gameState.autoMoveDelay >= AUTO_MOVE_DELAY) {
-            g_gameState.autoMoveSpeed += deltaTime;
+        g_gameState.timerAutoMoveDelay += deltaTime;
+        if (g_gameState.timerAutoMoveDelay >= AUTO_MOVE_DELAY) {
+            g_gameState.timerAutoMoveSpeed += deltaTime;
         }
-        if (g_gameState.autoMoveSpeed >= AUTO_MOVE_SPEED || keyboardState->right.didChangeState) {
-            g_gameState.autoMoveSpeed = 0.0f;
+        if (g_gameState.timerAutoMoveSpeed >= AUTO_MOVE_SPEED || keyboardState->right.didChangeState) {
+            g_gameState.timerAutoMoveSpeed = 0.0f;
             ++g_gameState.current.x;
             if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
                 --g_gameState.current.x;
@@ -258,12 +300,12 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
         }
     }
     else if (keyboardState->left.isDown) {
-        g_gameState.autoMoveDelay += deltaTime;
-        if (g_gameState.autoMoveDelay >= AUTO_MOVE_DELAY) {
-            g_gameState.autoMoveSpeed += deltaTime;
+        g_gameState.timerAutoMoveDelay += deltaTime;
+        if (g_gameState.timerAutoMoveDelay >= AUTO_MOVE_DELAY) {
+            g_gameState.timerAutoMoveSpeed += deltaTime;
         }
-        if (g_gameState.autoMoveSpeed >= AUTO_MOVE_SPEED || keyboardState->left.didChangeState) {
-            g_gameState.autoMoveSpeed = 0.0f;
+        if (g_gameState.timerAutoMoveSpeed >= AUTO_MOVE_SPEED || keyboardState->left.didChangeState) {
+            g_gameState.timerAutoMoveSpeed = 0.0f;
             --g_gameState.current.x;
             if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
                 ++g_gameState.current.x;
@@ -271,10 +313,10 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
         }
     }
     else {
-        g_gameState.autoMoveDelay = 0.0f;
+        g_gameState.timerAutoMoveDelay = 0.0f;
     }
 
-    if (keyboardState->x.isDown && keyboardState->x.didChangeState) {
+    if (PRESSED(keyboardState->x)) {
         g_gameState.current.rotation = (g_gameState.current.rotation + 5) % 4;
         if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
             ++g_gameState.current.x;
@@ -286,7 +328,7 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
             }
         }
     }
-    else if (keyboardState->z.isDown && keyboardState->z.didChangeState) {
+    else if (PRESSED(keyboardState->z)) {
         g_gameState.current.rotation = (g_gameState.current.rotation + 3) % 4;
         if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
             ++g_gameState.current.x;
@@ -299,16 +341,12 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
         }
     }
 
-    if (keyboardState->c.isDown && keyboardState->c.didChangeState && !g_gameState.didSwitchHeld) {
-        g_gameState.didSwitchHeld = true;
+    if (PRESSED(keyboardState->c) && !g_gameState.didUseHoldBox) {
+        g_gameState.didUseHoldBox = true;
 
         tetromino_type temp = g_gameState.current.type;
         if (g_gameState.hold.type == tetromino_type_empty) {
-            g_gameState.current = InitTetromino(g_gameState.bag[g_gameState.bagIndex++], 0, 3, 16);
-            if (g_gameState.bagIndex >= 7) {
-                g_gameState.bagIndex = 0;
-                RandomizeBag(g_gameState.bag);
-            }
+            g_gameState.current = InitTetromino(GetNextTetrominoFromBag(g_gameState.bag, &g_gameState.bagIndex), 0, 3, 16);
         }
         else {
             g_gameState.current = InitTetromino(g_gameState.hold.type, 0, 3, 16);
@@ -327,53 +365,31 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
 
     f32 TEST_fallSpeed = keyboardState->down.isDown ? 0.05f : 0.5f;
 
-    g_gameState.fallSpeed += deltaTime;
-    if (g_gameState.fallSpeed >= TEST_fallSpeed || didHardDrop) {
-        g_gameState.fallSpeed = 0.0f;
+    g_gameState.timerFallSpeed += deltaTime;
+    if (g_gameState.timerFallSpeed >= TEST_fallSpeed || didHardDrop) {
+        g_gameState.timerFallSpeed = 0.0f;
 
         --g_gameState.current.y;
+
         if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
             ++g_gameState.current.y;
             TEST_PlaceTetromino(&g_gameState.board, &g_gameState.current);
 
-            i32 y = g_gameState.current.y + 3;
-            while (y >= 0 && y >= g_gameState.current.y) {
-                b32 isLineClear = true;
-                for (i32 x = 0; x < g_gameState.board.width; ++x) {
-                    if (g_gameState.board.tiles[y * g_gameState.board.width + x] == tetromino_type_empty) {
-                        isLineClear = false;
-                        break;
-                    }
-                }
+            ProcessLineClears(&g_gameState.board, &g_gameState.current);
 
-                if (isLineClear) {
-                    for (i32 i = y; i < g_gameState.board.height - 1; ++i) {
-                        for (i32 j = 0; j < g_gameState.board.width; ++j) {
-                            g_gameState.board.tiles[i * g_gameState.board.width + j] = g_gameState.board.tiles[(i + 1) * g_gameState.board.width + j];
-                        }
-                    }
-                    PlaySound(&g_gameState.testWAVData2, false, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
-                }
-
-                --y;
-            }
-
-            g_gameState.current = InitTetromino(g_gameState.next.type, 0, 3, 16);
-            g_gameState.next.type = g_gameState.bag[g_gameState.bagIndex++];
-            if (g_gameState.bagIndex >= 7) {
-                g_gameState.bagIndex = 0;
-                RandomizeBag(g_gameState.bag);
-            }
+            g_gameState.current = InitTetromino(g_gameState.next.type, 0, BOARD_WIDTH / 2 - 2, BOARD_HEIGHT - 4);
+            g_gameState.next.type = GetNextTetrominoFromBag(g_gameState.bag, &g_gameState.bagIndex);
 
             if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
-                for (i32 i = 0; i < g_gameState.board.size; ++i) {
-                    g_gameState.board.tiles[i] = tetromino_type_empty;
-                }
+                ClearBoard(&g_gameState.board);
             }
 
-            g_gameState.didSwitchHeld = false;
+            g_gameState.didUseHoldBox = false;
         }
     }
+
+    //TEST_renderBackround(graphicsBuffer, 0, 0);
+    DrawRectangle(graphicsBuffer, 0, 0, graphicsBuffer->width, graphicsBuffer->height, RGBToU32(25, 26, 59));
 
     DrawRectangle(graphicsBuffer, g_gameState.board.x - 10, g_gameState.board.y, g_gameState.board.widthPx + 20, g_gameState.board.heightPx, TETROMINO_COLOURS[tetromino_type_empty]);
     TEST_DrawBoard(graphicsBuffer, &g_gameState.board);
@@ -384,15 +400,17 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
         4 * g_gameState.board.tileSize + 20, 4 * g_gameState.board.tileSize + 20, RGBToU32(0, 0, 0));
     TEST_DrawTetrominoInScreen(graphicsBuffer, &g_gameState.next, g_gameState.board.tileSize);
 
-    u32 TEST_colour = g_gameState.didSwitchHeld ? RGBToU32(64, 64, 64) : RGBToU32(0, 0, 0);
+    u32 TEST_colour = g_gameState.didUseHoldBox ? RGBToU32(64, 64, 64) : RGBToU32(0, 0, 0);
     DrawRectangle(graphicsBuffer, g_gameState.hold.x - 10, g_gameState.hold.y - 10, \
         4 * g_gameState.board.tileSize + 20, 4 * g_gameState.board.tileSize + 20, TEST_colour);
     TEST_DrawTetrominoInScreen(graphicsBuffer, &g_gameState.hold, g_gameState.board.tileSize);
 
     DrawRectangle(graphicsBuffer, keyboardState->mouseX, keyboardState->mouseY, 16, 16, 0xFFFFFF);
 
-    DrawBitmap(graphicsBuffer, &g_gameState.testBitmap1, 50, 50);
-    DrawBitmap(graphicsBuffer, &g_gameState.testBitmap2, g_gameState.testBitmap1.width + 50, 50);
+    static i32 TEST_wtf = 50;
+    ++TEST_wtf;
+    DrawBitmap(graphicsBuffer, &g_gameData.testBitmap1, 50, 50, TEST_wtf, false);
+    //DrawBitmap(graphicsBuffer, &g_gameData.testBitmap2, g_gameData.testBitmap1.width + 50, 50);
 
 
     ProcessSound(soundBuffer, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);

@@ -3,7 +3,7 @@
 // Move this somewhere else, like a maths file or something
 static i32 GetLeastSignificantSetBitIndex(u32 bits) {
     for (int i = 0; i < 32; ++i) {
-        if ((bits >> i) & 1) {
+        if (bits & (1 << i)) {
             return i;
         }
     }
@@ -112,39 +112,56 @@ bitmap_buffer LoadBMP(const char* filePath) {
     return bitmap;
 }
 
-void DrawBitmap(bitmap_buffer* graphicsBuffer, bitmap_buffer* bitmap, i32 x, i32 y) {
+void DrawBitmap(bitmap_buffer* graphicsBuffer, bitmap_buffer* bitmap, i32 x, i32 y, i32 width, b32 isTransparent) {
+    f32 aspectRatio = bitmap->width / (f32)bitmap->height;
+    f32 ratio = bitmap->width / (f32)width;
+
+    i32 height = width / aspectRatio;
+
     i32 xMin = Max(x, 0);
     i32 yMin = Max(y, 0);
-    i32 xMax = Min(x + bitmap->width, graphicsBuffer->width);
-    i32 yMax = Min(y + bitmap->height, graphicsBuffer->height);
+    i32 xMax = Min(x + width, graphicsBuffer->width);
+    i32 yMax = Min(y + height, graphicsBuffer->height);
 
     i32 xOffset = x < 0 ? -x : 0;
     i32 yOffset = y < 0 ? -y : 0;
 
-    u8* rowDest   = (u8*)graphicsBuffer->memory + yMin * graphicsBuffer->pitch + xMin * graphicsBuffer->bytesPerPixel;
-    u8* rowSource = (u8*)bitmap->memory + yOffset * bitmap->pitch + xOffset * bitmap->bytesPerPixel;
+    i32 sourceXOffset = xOffset * ratio;
+    i32 sourceYOffset = yOffset * ratio;
+
+    u8* rowDest = (u8*)graphicsBuffer->memory + yMin * graphicsBuffer->pitch + xMin * graphicsBuffer->bytesPerPixel;
+    u32* source = bitmap->memory;
+    f32 sourceY = sourceYOffset;
     for (i32 y = yMin; y < yMax; ++y) {
-        u32* dest   = rowDest;
-        u32* source = rowSource;
+        u32* dest = rowDest;
+        f32 sourceIndex = sourceXOffset + (i32)sourceY * bitmap->width;
         for (i32 x = xMin; x < xMax; ++x) {
-            u32 sa = ((u8*)source)[3];
-            u32 sr = ((u8*)source)[2];
-            u32 sg = ((u8*)source)[1];
-            u32 sb = ((u8*)source)[0];
+            if (isTransparent) {
+                u32 sc = source[(i32)sourceIndex];
 
-            u32 dr = ((u8*)dest)[2];
-            u32 dg = ((u8*)dest)[1];
-            u32 db = ((u8*)dest)[0];
+                u8 sa = sc >> 24;
+                u8 sr = sc >> 16;
+                u8 sg = sc >> 8;
+                u8 sb = sc;
 
-            f32 t = sa / 255.0f;
-            u32 r = (1.0f - t) * dr + t * sr;
-            u32 g = (1.0f - t) * dg + t * sg;
-            u32 b = (1.0f - t) * db + t * sb;
+                u8 dr = *dest >> 16;
+                u8 dg = *dest >> 8;
+                u8 db = *dest;
 
-            *dest++ = RGBToU32(r, g, b);
-            ++source;
+                f32 t = sa / 255.0f;
+                u32 r = sr + t * (i32)(dr - sr);
+                u32 g = sg + t * (i32)(dg - sg);
+                u32 b = sb + t * (i32)(db - sb);
+
+                *dest++ = RGBToU32(r, g, b);
+            }
+            else {
+                *dest++ = source[(i32)sourceIndex];
+            }
+            
+            sourceIndex += ratio;
         }
-        rowDest   += graphicsBuffer->pitch;
-        rowSource += bitmap->pitch;
+        rowDest += graphicsBuffer->pitch;
+        sourceY += ratio;
     }
 }
