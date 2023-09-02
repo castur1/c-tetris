@@ -4,10 +4,6 @@
 #include "tetris.h"
 
 
-#define RESAMPLE_NONE 0
-#define RESAMPLE_NEAREST 1
-#define RESAMPLE_BILINEAR 2
-
 #define RGBToU32(r, g, b) (((r) << 16) | ((g) << 8) | (b))
 
 

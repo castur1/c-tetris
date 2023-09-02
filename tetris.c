@@ -55,17 +55,6 @@ static const u16* TETROMINOES[8] = {
     TETROMINO_L
 };
 
-static const u32 TETROMINO_COLOURS[8] = {
-    RGBToU32(0, 0, 0),     // Empty
-    RGBToU32(0, 255, 255), // I
-    RGBToU32(255, 255, 0), // O
-    RGBToU32(255, 0, 255), // T
-    RGBToU32(0, 255, 0),   // S
-    RGBToU32(255, 0, 0),   // Z
-    RGBToU32(0, 0, 255),   // J
-    RGBToU32(255, 128, 0), // L
-};
-
 typedef struct board_t {
     tetromino_type* tiles;
     i32 width;
@@ -128,36 +117,39 @@ static void TEST_PlaceTetromino(board_t* board, tetromino_t* tetromino) {
     }
 }
 
-static void TEST_DrawTetrominoInScreen(bitmap_buffer* graphicsBuffer, tetromino_t* tetromino, i32 size) {
+static void TEST_DrawTetrominoInScreen(bitmap_buffer* graphicsBuffer, tetromino_t* tetromino, i32 size, bitmap_buffer* sprite) {
     u16 bitField = TETROMINOES[tetromino->type][tetromino->rotation];
     for (i32 i = 0; i < 16; ++i) { 
         if (bitField & (1 << i)) {
             i32 xOffset = (i % 4) * size;
             i32 yOffset = (i / 4) * size;
-            DrawRectangle(graphicsBuffer, tetromino->x + xOffset, tetromino->y + yOffset, size, size, TETROMINO_COLOURS[tetromino->type]);
+            DrawBitmap(graphicsBuffer, sprite, tetromino->x + xOffset, tetromino->y + yOffset, size, false);
+            //DrawRectangle(graphicsBuffer, tetromino->x + xOffset, tetromino->y + yOffset, size, size, TETROMINO_COLOURS[tetromino->type]);
         }
     }
 }
 
-static void TEST_DrawTetrominoInBoard(bitmap_buffer* graphicsBuffer, board_t* board, tetromino_t* tetromino) {
+static void TEST_DrawTetrominoInBoard(bitmap_buffer* graphicsBuffer, board_t* board, tetromino_t* tetromino, bitmap_buffer* sprite) {
     u16 bitField = TETROMINOES[tetromino->type][tetromino->rotation];
     for (i32 i = 0; i < 16; ++i) { 
         if (bitField & (1 << i)) {
             i32 x = tetromino->x + (i % 4);
             i32 y = tetromino->y + (i / 4);
-            DrawRectangle(graphicsBuffer, board->x + x * board->tileSize, board->y + y * board->tileSize, \
-                board->tileSize, board->tileSize, TETROMINO_COLOURS[tetromino->type]);
+            DrawBitmap(graphicsBuffer, sprite, board->x + x * board->tileSize, board->y + y * board->tileSize, board->tileSize, false);
+            //DrawRectangle(graphicsBuffer, board->x + x * board->tileSize, board->y + y * board->tileSize, \
+            //    board->tileSize, board->tileSize, TETROMINO_COLOURS[tetromino->type]);
         }
     }
 }
 
-static void TEST_DrawBoard(bitmap_buffer* graphicsBuffer, board_t* board) {
+static void TEST_DrawBoard(bitmap_buffer* graphicsBuffer, board_t* board, bitmap_buffer** sprites) {
     for (i32 y = 0; y < board->height; ++y) {
         for (i32 x = 0; x < board->width; ++x) {
             tetromino_type tile = board->tiles[y * board->width + x];
             if (tile != tetromino_type_empty) {
-                DrawRectangle(graphicsBuffer, board->x + x * board->tileSize, board->y + y * board->tileSize, \
-                    board->tileSize, board->tileSize, TETROMINO_COLOURS[tile]);
+                DrawBitmap(graphicsBuffer, sprites[tile], board->x + x * board->tileSize, board->y + y * board->tileSize, board->tileSize, false);
+                //DrawRectangle(graphicsBuffer, board->x + x * board->tileSize, board->y + y * board->tileSize, \
+                //    board->tileSize, board->tileSize, TETROMINO_COLOURS[tile]);
             }
         }
     }
@@ -254,8 +246,17 @@ typedef struct game_state {
 } game_state;
 
 typedef struct game_data {
-    bitmap_buffer testBitmap1;
-    bitmap_buffer testBitmap2;
+    bitmap_buffer tetrominoCyan;
+    bitmap_buffer tetrominoYellow;
+    bitmap_buffer tetrominoPurple;
+    bitmap_buffer tetrominoGreen;
+    bitmap_buffer tetrominoRed;
+    bitmap_buffer tetrominoBlue;
+    bitmap_buffer tetrominoOrange;
+    bitmap_buffer* tetrominoes[8];
+
+    bitmap_buffer background;
+
     sound_buffer testWAVData1;
     sound_buffer testWAVData2;
 } game_data;
@@ -264,8 +265,23 @@ static game_state g_gameState;
 static game_data g_gameData;
 
 void OnStartup(void) {
-    g_gameData.testBitmap1  = LoadBMP("assets/OpacityTest.bmp");
-    g_gameData.testBitmap2  = LoadBMP("assets/opacity_test.bmp");
+    g_gameData.tetrominoCyan   = LoadBMP("assets/tetromino_cyan.bmp");
+    g_gameData.tetrominoYellow = LoadBMP("assets/tetromino_yellow.bmp");
+    g_gameData.tetrominoPurple = LoadBMP("assets/tetromino_purple.bmp");
+    g_gameData.tetrominoGreen  = LoadBMP("assets/tetromino_green.bmp");
+    g_gameData.tetrominoRed    = LoadBMP("assets/tetromino_red.bmp");
+    g_gameData.tetrominoBlue   = LoadBMP("assets/tetromino_blue.bmp");
+    g_gameData.tetrominoOrange = LoadBMP("assets/tetromino_orange.bmp");
+    g_gameData.tetrominoes[1] = &g_gameData.tetrominoCyan;
+    g_gameData.tetrominoes[2] = &g_gameData.tetrominoYellow;
+    g_gameData.tetrominoes[3] = &g_gameData.tetrominoPurple;
+    g_gameData.tetrominoes[4] = &g_gameData.tetrominoGreen;
+    g_gameData.tetrominoes[5] = &g_gameData.tetrominoRed;
+    g_gameData.tetrominoes[6] = &g_gameData.tetrominoBlue;
+    g_gameData.tetrominoes[7] = &g_gameData.tetrominoOrange;
+
+    g_gameData.background = LoadBMP("assets/background.bmp");
+
     g_gameData.testWAVData1 = LoadWAV("assets/wav_test3.wav");
     g_gameData.testWAVData2 = LoadWAV("assets/explosion.wav");
 
@@ -273,16 +289,14 @@ void OnStartup(void) {
 
     RandomInit();
 
-    g_gameState.board = InitBoard(BOARD_WIDTH, BOARD_HEIGHT, 0, 0, 0);
-    SetBoardTileSize(&g_gameState.board, BITMAP_HEIGHT / (f32)g_gameState.board.height);
-    g_gameState.board.x = (BITMAP_WIDTH - g_gameState.board.widthPx) / 2;
+    g_gameState.board = InitBoard(BOARD_WIDTH, BOARD_HEIGHT, 470, 20, 34);
 
     g_gameState.bag[7] = RandomI32InRange(1, 7);
     RandomizeBag(g_gameState.bag);
 
     g_gameState.current = InitTetromino(g_gameState.bag[g_gameState.bagIndex++], 0, BOARD_WIDTH / 2 - 2, BOARD_HEIGHT - 4);
-    g_gameState.next = InitTetromino(g_gameState.bag[g_gameState.bagIndex++], 0, g_gameState.board.x + g_gameState.board.widthPx + 50, 50);
-    g_gameState.hold = InitTetromino(tetromino_type_empty, 0, g_gameState.board.x + g_gameState.board.widthPx + 50, 250);
+    g_gameState.next = InitTetromino(g_gameState.bag[g_gameState.bagIndex++], 0, 839, 564);
+    g_gameState.hold = InitTetromino(tetromino_type_empty, 0, 839, 400);
 }
 
 void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
@@ -346,10 +360,10 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
 
         tetromino_type temp = g_gameState.current.type;
         if (g_gameState.hold.type == tetromino_type_empty) {
-            g_gameState.current = InitTetromino(GetNextTetrominoFromBag(g_gameState.bag, &g_gameState.bagIndex), 0, 3, 16);
+            g_gameState.current = InitTetromino(GetNextTetrominoFromBag(g_gameState.bag, &g_gameState.bagIndex), 0, 3, 16, &g_gameData.tetrominoes);
         }
         else {
-            g_gameState.current = InitTetromino(g_gameState.hold.type, 0, 3, 16);
+            g_gameState.current = InitTetromino(g_gameState.hold.type, 0, 3, 16, &g_gameData.tetrominoes);
         }
         g_gameState.hold.type = temp;
     }
@@ -377,7 +391,7 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
 
             ProcessLineClears(&g_gameState.board, &g_gameState.current);
 
-            g_gameState.current = InitTetromino(g_gameState.next.type, 0, BOARD_WIDTH / 2 - 2, BOARD_HEIGHT - 4);
+            g_gameState.current = InitTetromino(g_gameState.next.type, 0, BOARD_WIDTH / 2 - 2, BOARD_HEIGHT - 4, &g_gameData.tetrominoes);
             g_gameState.next.type = GetNextTetrominoFromBag(g_gameState.bag, &g_gameState.bagIndex);
 
             if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
@@ -388,29 +402,17 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
         }
     }
 
-    //TEST_renderBackround(graphicsBuffer, 0, 0);
-    DrawRectangle(graphicsBuffer, 0, 0, graphicsBuffer->width, graphicsBuffer->height, RGBToU32(25, 26, 59));
+    DrawBitmap(graphicsBuffer, &g_gameData.background, 0, 0, 1280, false);
 
-    DrawRectangle(graphicsBuffer, g_gameState.board.x - 10, g_gameState.board.y, g_gameState.board.widthPx + 20, g_gameState.board.heightPx, TETROMINO_COLOURS[tetromino_type_empty]);
-    TEST_DrawBoard(graphicsBuffer, &g_gameState.board);
+    TEST_DrawBoard(graphicsBuffer, &g_gameState.board, g_gameData.tetrominoes);
 
-    TEST_DrawTetrominoInBoard(graphicsBuffer, &g_gameState.board, &g_gameState.current);
+    TEST_DrawTetrominoInBoard(graphicsBuffer, &g_gameState.board, &g_gameState.current, g_gameData.tetrominoes[g_gameState.current.type]);
 
-    DrawRectangle(graphicsBuffer, g_gameState.next.x - 10, g_gameState.next.y - 10, \
-        4 * g_gameState.board.tileSize + 20, 4 * g_gameState.board.tileSize + 20, RGBToU32(0, 0, 0));
-    TEST_DrawTetrominoInScreen(graphicsBuffer, &g_gameState.next, g_gameState.board.tileSize);
+    TEST_DrawTetrominoInScreen(graphicsBuffer, &g_gameState.next, g_gameState.board.tileSize, g_gameData.tetrominoes[g_gameState.next.type]);
 
-    u32 TEST_colour = g_gameState.didUseHoldBox ? RGBToU32(64, 64, 64) : RGBToU32(0, 0, 0);
-    DrawRectangle(graphicsBuffer, g_gameState.hold.x - 10, g_gameState.hold.y - 10, \
-        4 * g_gameState.board.tileSize + 20, 4 * g_gameState.board.tileSize + 20, TEST_colour);
-    TEST_DrawTetrominoInScreen(graphicsBuffer, &g_gameState.hold, g_gameState.board.tileSize);
+    TEST_DrawTetrominoInScreen(graphicsBuffer, &g_gameState.hold, g_gameState.board.tileSize, g_gameData.tetrominoes[g_gameState.hold.type]);
 
     DrawRectangle(graphicsBuffer, keyboardState->mouseX, keyboardState->mouseY, 16, 16, 0xFFFFFF);
-
-    static i32 TEST_wtf = 50;
-    ++TEST_wtf;
-    DrawBitmap(graphicsBuffer, &g_gameData.testBitmap1, 50, 50, TEST_wtf, false);
-    //DrawBitmap(graphicsBuffer, &g_gameData.testBitmap2, g_gameData.testBitmap1.width + 50, 50);
 
 
     ProcessSound(soundBuffer, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
