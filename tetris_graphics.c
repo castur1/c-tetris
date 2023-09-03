@@ -112,7 +112,7 @@ bitmap_buffer LoadBMP(const char* filePath) {
     return bitmap;
 }
 
-void DrawBitmap(bitmap_buffer* graphicsBuffer, bitmap_buffer* bitmap, i32 x, i32 y, i32 width, b32 isTransparent) {
+void DrawBitmap(bitmap_buffer* graphicsBuffer, bitmap_buffer* bitmap, i32 x, i32 y, i32 width, i32 opacity) {
     f32 aspectRatio = bitmap->width / (f32)bitmap->height;
     f32 ratio = bitmap->width / (f32)width;
 
@@ -136,7 +136,7 @@ void DrawBitmap(bitmap_buffer* graphicsBuffer, bitmap_buffer* bitmap, i32 x, i32
         u32* dest = rowDest;
         f32 sourceIndex = sourceXOffset + (i32)sourceY * bitmap->width;
         for (i32 x = xMin; x < xMax; ++x) {
-            if (isTransparent) {
+            if (opacity != OPACITY_NONE) {
                 u32 sc = source[(i32)sourceIndex];
 
                 u8 sa = sc >> 24;
@@ -147,6 +147,10 @@ void DrawBitmap(bitmap_buffer* graphicsBuffer, bitmap_buffer* bitmap, i32 x, i32
                 u8 dr = *dest >> 16;
                 u8 dg = *dest >> 8;
                 u8 db = *dest;
+
+                if (opacity != OPACITY_DEFAULT) {
+                    sa = opacity;
+                }
 
                 f32 t = sa / 255.0f;
                 u32 r = sr + t * (i32)(dr - sr);

@@ -106,7 +106,7 @@ static tetromino_t InitTetromino(tetromino_type type, i32 rotation, i32 x, i32 y
     return (tetromino_t){ .type = type, .rotation = rotation, .x = x, .y = y };
 }
 
-static void TEST_PlaceTetromino(board_t* board, tetromino_t* tetromino) {
+static void PlaceTetromino(board_t* board, tetromino_t* tetromino) {
     u16 bitField = TETROMINOES[tetromino->type][tetromino->rotation];
     for (i32 i = 0; i < 16; ++i) { 
         if (bitField & (1 << i)) {
@@ -117,39 +117,34 @@ static void TEST_PlaceTetromino(board_t* board, tetromino_t* tetromino) {
     }
 }
 
-static void TEST_DrawTetrominoInScreen(bitmap_buffer* graphicsBuffer, tetromino_t* tetromino, i32 size, bitmap_buffer* sprite) {
+static void DrawTetrominoInScreen(bitmap_buffer* graphicsBuffer, tetromino_t* tetromino, i32 size, bitmap_buffer* sprite, i32 opacity) {
     u16 bitField = TETROMINOES[tetromino->type][tetromino->rotation];
     for (i32 i = 0; i < 16; ++i) { 
         if (bitField & (1 << i)) {
             i32 xOffset = (i % 4) * size;
             i32 yOffset = (i / 4) * size;
-            DrawBitmap(graphicsBuffer, sprite, tetromino->x + xOffset, tetromino->y + yOffset, size, false);
-            //DrawRectangle(graphicsBuffer, tetromino->x + xOffset, tetromino->y + yOffset, size, size, TETROMINO_COLOURS[tetromino->type]);
+            DrawBitmap(graphicsBuffer, sprite, tetromino->x + xOffset, tetromino->y + yOffset, size, opacity);
         }
     }
 }
 
-static void TEST_DrawTetrominoInBoard(bitmap_buffer* graphicsBuffer, board_t* board, tetromino_t* tetromino, bitmap_buffer* sprite) {
+static void DrawTetrominoInBoard(bitmap_buffer* graphicsBuffer, board_t* board, tetromino_t* tetromino, bitmap_buffer* sprite, i32 opacity) {
     u16 bitField = TETROMINOES[tetromino->type][tetromino->rotation];
     for (i32 i = 0; i < 16; ++i) { 
         if (bitField & (1 << i)) {
             i32 x = tetromino->x + (i % 4);
             i32 y = tetromino->y + (i / 4);
-            DrawBitmap(graphicsBuffer, sprite, board->x + x * board->tileSize, board->y + y * board->tileSize, board->tileSize, false);
-            //DrawRectangle(graphicsBuffer, board->x + x * board->tileSize, board->y + y * board->tileSize, \
-            //    board->tileSize, board->tileSize, TETROMINO_COLOURS[tetromino->type]);
+            DrawBitmap(graphicsBuffer, sprite, board->x + x * board->tileSize, board->y + y * board->tileSize, board->tileSize, opacity);
         }
     }
 }
 
-static void TEST_DrawBoard(bitmap_buffer* graphicsBuffer, board_t* board, bitmap_buffer** sprites) {
+static void DrawBoard(bitmap_buffer* graphicsBuffer, board_t* board, bitmap_buffer** sprites) {
     for (i32 y = 0; y < board->height; ++y) {
         for (i32 x = 0; x < board->width; ++x) {
             tetromino_type tile = board->tiles[y * board->width + x];
             if (tile != tetromino_type_empty) {
-                DrawBitmap(graphicsBuffer, sprites[tile], board->x + x * board->tileSize, board->y + y * board->tileSize, board->tileSize, false);
-                //DrawRectangle(graphicsBuffer, board->x + x * board->tileSize, board->y + y * board->tileSize, \
-                //    board->tileSize, board->tileSize, TETROMINO_COLOURS[tile]);
+                DrawBitmap(graphicsBuffer, sprites[tile], board->x + x * board->tileSize, board->y + y * board->tileSize, board->tileSize, OPACITY_NONE);
             }
         }
     }
@@ -200,10 +195,10 @@ static b32 ProcessLineClears(board_t* board, tetromino_t* tetromino) {
     return didClearLines;
 }
 
-static void RandomizeBag(tetromino_type* bag) {
-    bag[0] = bag[7];
-    for (i32 i = 1; i < 7;) {
-        i32 attempt = RandomI32InRange(1, 7);
+static void RandomizeBag(tetromino_type* bag, i32 bagSize) {
+    bag[0] = bag[bagSize];
+    for (i32 i = 1; i < bagSize;) {
+        i32 attempt = RandomI32InRange(1, bagSize);
         for (i32 j = 0; j < i; ++j) {
             if (bag[j] == attempt) {
                 attempt = 0;
@@ -215,15 +210,15 @@ static void RandomizeBag(tetromino_type* bag) {
         }
         bag[i++] = attempt;
     }
-    bag[7] = RandomI32InRange(1, 7);
+    bag[bagSize] = RandomI32InRange(1, bagSize);
 }
 
-static tetromino_type GetNextTetrominoFromBag(tetromino_type* bag, i32* bagIndex) {
+static tetromino_type GetNextTetrominoFromBag(tetromino_type* bag, i32* bagIndex, i32 bagSize) {
     tetromino_type result = bag[(*bagIndex)++];
 
-    if (*bagIndex >= 7) {
+    if (*bagIndex >= bagSize) {
         *bagIndex = 0;
-        RandomizeBag(bag);
+        RandomizeBag(bag, bagSize);
     }
 
     return result;
@@ -292,11 +287,11 @@ void OnStartup(void) {
     g_gameState.board = InitBoard(BOARD_WIDTH, BOARD_HEIGHT, 470, 20, 34);
 
     g_gameState.bag[7] = RandomI32InRange(1, 7);
-    RandomizeBag(g_gameState.bag);
+    RandomizeBag(g_gameState.bag, 7);
 
     g_gameState.current = InitTetromino(g_gameState.bag[g_gameState.bagIndex++], 0, BOARD_WIDTH / 2 - 2, BOARD_HEIGHT - 4);
-    g_gameState.next = InitTetromino(g_gameState.bag[g_gameState.bagIndex++], 0, 839, 564);
-    g_gameState.hold = InitTetromino(tetromino_type_empty, 0, 839, 400);
+    g_gameState.next = InitTetromino(g_gameState.bag[g_gameState.bagIndex++], 0, 838, 564);
+    g_gameState.hold = InitTetromino(tetromino_type_empty, 0, 838, 400);
 }
 
 void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
@@ -360,7 +355,8 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
 
         tetromino_type temp = g_gameState.current.type;
         if (g_gameState.hold.type == tetromino_type_empty) {
-            g_gameState.current = InitTetromino(GetNextTetrominoFromBag(g_gameState.bag, &g_gameState.bagIndex), 0, 3, 16, &g_gameData.tetrominoes);
+            g_gameState.current = InitTetromino(g_gameState.next.type, 0, 3, 16, &g_gameData.tetrominoes);
+            g_gameState.next.type = GetNextTetrominoFromBag(g_gameState.bag, &g_gameState.bagIndex, 7);
         }
         else {
             g_gameState.current = InitTetromino(g_gameState.hold.type, 0, 3, 16, &g_gameData.tetrominoes);
@@ -387,30 +383,40 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
 
         if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
             ++g_gameState.current.y;
-            TEST_PlaceTetromino(&g_gameState.board, &g_gameState.current);
+            PlaceTetromino(&g_gameState.board, &g_gameState.current);
 
             ProcessLineClears(&g_gameState.board, &g_gameState.current);
 
             g_gameState.current = InitTetromino(g_gameState.next.type, 0, BOARD_WIDTH / 2 - 2, BOARD_HEIGHT - 4, &g_gameData.tetrominoes);
-            g_gameState.next.type = GetNextTetrominoFromBag(g_gameState.bag, &g_gameState.bagIndex);
+            g_gameState.next.type = GetNextTetrominoFromBag(g_gameState.bag, &g_gameState.bagIndex, 7);
 
             if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
                 ClearBoard(&g_gameState.board);
+                RandomizeBag(g_gameState.bag, 7);
+                g_gameState.hold.type = tetromino_type_empty;
             }
 
             g_gameState.didUseHoldBox = false;
         }
     }
 
-    DrawBitmap(graphicsBuffer, &g_gameData.background, 0, 0, 1280, false);
+    tetromino_t ghost = g_gameState.current;
+    while (IsTetrominoPosValid(&g_gameState.board, &ghost)) {
+        --ghost.y;
+    }
+    ++ghost.y;
 
-    TEST_DrawBoard(graphicsBuffer, &g_gameState.board, g_gameData.tetrominoes);
+    DrawBitmap(graphicsBuffer, &g_gameData.background, 0, 0, 1280, OPACITY_NONE);
 
-    TEST_DrawTetrominoInBoard(graphicsBuffer, &g_gameState.board, &g_gameState.current, g_gameData.tetrominoes[g_gameState.current.type]);
+    DrawBoard(graphicsBuffer, &g_gameState.board, g_gameData.tetrominoes);
 
-    TEST_DrawTetrominoInScreen(graphicsBuffer, &g_gameState.next, g_gameState.board.tileSize, g_gameData.tetrominoes[g_gameState.next.type]);
+    DrawTetrominoInBoard(graphicsBuffer, &g_gameState.board, &g_gameState.current, g_gameData.tetrominoes[g_gameState.current.type], OPACITY_NONE);
 
-    TEST_DrawTetrominoInScreen(graphicsBuffer, &g_gameState.hold, g_gameState.board.tileSize, g_gameData.tetrominoes[g_gameState.hold.type]);
+    DrawTetrominoInBoard(graphicsBuffer, &g_gameState.board, &ghost, g_gameData.tetrominoes[ghost.type], 192);
+
+    DrawTetrominoInScreen(graphicsBuffer, &g_gameState.next, g_gameState.board.tileSize, g_gameData.tetrominoes[g_gameState.next.type], OPACITY_NONE);
+
+    DrawTetrominoInScreen(graphicsBuffer, &g_gameState.hold, g_gameState.board.tileSize, g_gameData.tetrominoes[g_gameState.hold.type], g_gameState.didUseHoldBox ? 192 : OPACITY_NONE);
 
     DrawRectangle(graphicsBuffer, keyboardState->mouseX, keyboardState->mouseY, 16, 16, 0xFFFFFF);
 
