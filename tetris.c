@@ -134,7 +134,7 @@ static void DrawBoard(bitmap_buffer* graphicsBuffer, board_t* board, bitmap_buff
         for (i32 x = 0; x < board->width; ++x) {
             tetromino_type tile = board->tiles[y * board->width + x];
             if (tile != tetromino_type_empty) {
-                DrawBitmap(graphicsBuffer, &sprites[tile], board->x + x * board->tileSize, board->y + y * board->tileSize, board->tileSize, OPACITY_NONE);
+                DrawBitmap(graphicsBuffer, &sprites[tile], board->x + x * board->tileSize, board->y + y * board->tileSize, board->tileSize, OPACITY_DEFAULT);
             }
         }
     }
@@ -390,7 +390,8 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
                 } break;
             }
 
-            if (g_gameState.score >= g_gameState.level * 5) {
+            // Level increases every 10 score intervals
+            if (g_gameState.score >= g_gameState.level * 10) {
                 ++g_gameState.level;
                 PlaySound(&g_gameData.testWAVData2, false, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
             }
@@ -420,11 +421,11 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
 
     DrawBoard(graphicsBuffer, &g_gameState.board, g_gameData.tetrominoes);
 
-    DrawTetrominoInBoard(graphicsBuffer, &g_gameState.board, &g_gameState.current, &g_gameData.tetrominoes[g_gameState.current.type], OPACITY_NONE);
+    DrawTetrominoInBoard(graphicsBuffer, &g_gameState.board, &g_gameState.current, &g_gameData.tetrominoes[g_gameState.current.type], OPACITY_DEFAULT);
 
-    DrawTetrominoInBoard(graphicsBuffer, &g_gameState.board, &ghost, &g_gameData.tetrominoes[ghost.type], 192);
+    DrawTetrominoInBoard(graphicsBuffer, &g_gameState.board, &ghost, &g_gameData.tetrominoes[ghost.type], 64);
 
-    DrawTetrominoInScreen(graphicsBuffer, &g_gameState.next, g_gameState.board.tileSize, &g_gameData.tetrominoes[g_gameState.next.type], OPACITY_NONE);
+    DrawTetrominoInScreen(graphicsBuffer, &g_gameState.next, g_gameState.board.tileSize, &g_gameData.tetrominoes[g_gameState.next.type], OPACITY_DEFAULT);
 
     DrawTetrominoInScreen(graphicsBuffer, &g_gameState.hold, g_gameState.board.tileSize, &g_gameData.tetrominoes[g_gameState.hold.type], g_gameState.didUseHoldBox ? 192 : OPACITY_NONE);
 

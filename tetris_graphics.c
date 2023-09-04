@@ -64,7 +64,7 @@ bitmap_buffer LoadBMP(const char* filePath) {
     bitmap_header* header = (bitmap_header*)contents;
 
     if ((header->fileType[0] != 'B' || header->fileType[1] != 'M') || \
-        (header->bitsPerPixel != 32)) {
+        (header->bitsPerPixel != 24 && header->bitsPerPixel != 32)) {
         return (bitmap_buffer) { 0 };
     }
 
@@ -75,6 +75,16 @@ bitmap_buffer LoadBMP(const char* filePath) {
         .bytesPerPixel = 4,
         .pitch         = header->width * 4
     };
+
+    if (header->bitsPerPixel == 24) {
+        i32 pixelCount = bitmap.width * bitmap.height;
+        u32* newMemory = EngineAllocate(4 * pixelCount);
+        u32* newMemoryDummy = newMemory;
+        for (i32 i = 0; i < 3 * pixelCount; i += 3) {
+            *newMemory++ = *(u32*)((u8*)bitmap.memory + i) & 0x00FFFFFF;
+        }
+        bitmap.memory = newMemoryDummy;
+    }
 
     u32 bitShiftRed;
     u32 bitShiftGreen;
@@ -107,6 +117,10 @@ bitmap_buffer LoadBMP(const char* filePath) {
             (((*pixels >> bitShiftRed)   & 0xFF) << 16) | \
             (((*pixels >> bitShiftGreen) & 0xFF) << 8)  | \
             (((*pixels >> bitShiftBlue)  & 0xFF) << 0);
+    }
+
+    if (header->bitsPerPixel == 24) {
+        EngineFree(contents);
     }
 
     return bitmap;
@@ -149,13 +163,13 @@ void DrawBitmap(bitmap_buffer* graphicsBuffer, bitmap_buffer* bitmap, i32 x, i32
                 u8 db = *dest;
 
                 if (opacity != OPACITY_DEFAULT) {
-                    sa = opacity;
+                    sa = Min(sa, opacity);
                 }
 
                 f32 t = sa / 255.0f;
-                u32 r = sr + t * (i32)(dr - sr);
-                u32 g = sg + t * (i32)(dg - sg);
-                u32 b = sb + t * (i32)(db - sb);
+                u32 r = dr + t * (i32)(sr - dr);
+                u32 g = dg + t * (i32)(sg - dg);
+                u32 b = db + t * (i32)(sb - db);
 
                 *dest++ = RGBToU32(r, g, b);
             }
