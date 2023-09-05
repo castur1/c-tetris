@@ -59,6 +59,66 @@ typedef struct board_t {
     i32 heightPx;
 } board_t;
 
+typedef struct tetromino_t {
+    tetromino_type type;
+    i32 rotation;
+    i32 x;
+    i32 y;
+} tetromino_t;
+
+typedef void (*scene_pointer)(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime);
+
+typedef struct game_state {
+    scene_pointer currentScene;
+    audio_channel audioChannels[AUDIO_CHANNEL_COUNT];
+
+    // Scene 1 //
+
+    f32 timerFallSpeed;
+    f32 timerAutoMoveDelay;
+    f32 timerAutoMoveSpeed;
+
+    board_t board;
+    tetromino_t current;
+    tetromino_t next[3];
+    tetromino_t hold;
+    b32 didUseHoldBox;
+    tetromino_type bag[7];
+    i32 bagIndex;
+    i32 score;
+    i32 level;
+
+    // Scene 2 //
+
+} game_state;
+
+typedef struct game_data {
+    // Scene 1 //
+
+    bitmap_buffer tetrominoes[8];
+
+    bitmap_buffer background;
+
+    sound_buffer testWAVData1;
+    sound_buffer testWAVData2;
+
+    // Scene 2 //
+
+} game_data;
+
+
+static game_state g_gameState;
+static game_data g_gameData;
+
+
+static void InitScene1(void);
+static void InitScene2(void);
+static void Scene1(bitmap_buffer*, sound_buffer*, keyboard_state*, f32);
+static void Scene2(bitmap_buffer*, sound_buffer*, keyboard_state*, f32);
+static void CloseScene1(void);
+static void CloseScene2(void);
+
+
 static board_t InitBoard(i32 width, i32 height, i32 x, i32 y, i32 tileSize) {
     return (board_t) {
         .tiles    = EngineAllocate(width * height * sizeof(tetromino_type)),
@@ -84,13 +144,6 @@ static void ClearBoard(board_t* board) {
         board->tiles[i] = tetromino_type_empty;
     }
 }
-
-typedef struct tetromino_t {
-    tetromino_type type;
-    i32 rotation;
-    i32 x;
-    i32 y;
-} tetromino_t;
 
 static tetromino_t InitTetromino(tetromino_type type, i32 rotation, i32 x, i32 y) {
     return (tetromino_t){ .type = type, .rotation = rotation, .x = x, .y = y };
@@ -211,37 +264,8 @@ static tetromino_type GetNextTetrominoFromBag(tetromino_type* bag, i32* bagIndex
     return result;
 }
 
-typedef struct game_state {
-    f32 timerFallSpeed;
-    f32 timerAutoMoveDelay;
-    f32 timerAutoMoveSpeed;
 
-    board_t board;
-    tetromino_t current;
-    tetromino_t next[3];
-    tetromino_t hold;
-    b32 didUseHoldBox;
-    tetromino_type bag[7];
-    i32 bagIndex;
-    i32 score;
-    i32 level;
-
-    audio_channel audioChannels[AUDIO_CHANNEL_COUNT];
-} game_state;
-
-typedef struct game_data {
-    bitmap_buffer tetrominoes[8];
-
-    bitmap_buffer background;
-
-    sound_buffer testWAVData1;
-    sound_buffer testWAVData2;
-} game_data;
-
-static game_state g_gameState;
-static game_data g_gameData;
-
-void OnStartup(void) {
+static void InitScene1(void) {
     g_gameData.tetrominoes[1] = LoadBMP("assets/tetromino_cyan.bmp");
     g_gameData.tetrominoes[2] = LoadBMP("assets/tetromino_yellow.bmp");
     g_gameData.tetrominoes[3] = LoadBMP("assets/tetromino_purple.bmp");
@@ -273,7 +297,26 @@ void OnStartup(void) {
     g_gameState.level = 1;
 }
 
-void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
+static void CloseScene1(void) {
+    EngineFree(g_gameData.tetrominoes[1].memory);
+    EngineFree(g_gameData.tetrominoes[2].memory);
+    EngineFree(g_gameData.tetrominoes[3].memory);
+    EngineFree(g_gameData.tetrominoes[4].memory);
+    EngineFree(g_gameData.tetrominoes[5].memory);
+    EngineFree(g_gameData.tetrominoes[6].memory);
+    EngineFree(g_gameData.tetrominoes[7].memory);
+
+    EngineFree(g_gameData.background.memory);
+
+    EngineFree(g_gameData.testWAVData1.samples);
+    EngineFree(g_gameData.testWAVData2.samples);
+
+    EngineFree(g_gameState.board.tiles);
+
+    StopAllSounds(g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
+}
+
+static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
     if (keyboardState->right.isDown) {
         g_gameState.timerAutoMoveDelay += deltaTime;
         if (g_gameState.timerAutoMoveDelay >= AUTO_MOVE_DELAY) {
@@ -401,18 +444,10 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
             g_gameState.next[2].type = GetNextTetrominoFromBag(g_gameState.bag, &g_gameState.bagIndex);
 
             if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
-                ClearBoard(&g_gameState.board);
-
-                RandomizeBag(g_gameState.bag); 
-                g_gameState.current.type = GetNextTetrominoFromBag(g_gameState.bag, &g_gameState.bagIndex);
-                g_gameState.next[0].type = GetNextTetrominoFromBag(g_gameState.bag, &g_gameState.bagIndex);
-                g_gameState.next[1].type = GetNextTetrominoFromBag(g_gameState.bag, &g_gameState.bagIndex);
-                g_gameState.next[2].type = GetNextTetrominoFromBag(g_gameState.bag, &g_gameState.bagIndex);
-
-                g_gameState.hold.type = tetromino_type_empty;
-
-                g_gameState.score = 0;
-                g_gameState.level = 1;
+                g_gameState.currentScene = &Scene2;
+                CloseScene1();
+                InitScene2();
+                return;
             }
 
             g_gameState.didUseHoldBox = false;
@@ -438,9 +473,34 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
     DrawTetrominoInScreen(graphicsBuffer, &g_gameState.next[2], g_gameState.board.tileSize, &g_gameData.tetrominoes[g_gameState.next[2].type], OPACITY_DEFAULT);
 
     DrawTetrominoInScreen(graphicsBuffer, &g_gameState.hold, g_gameState.board.tileSize, &g_gameData.tetrominoes[g_gameState.hold.type], g_gameState.didUseHoldBox ? 128 : OPACITY_DEFAULT);
+}
 
-    DrawRectangle(graphicsBuffer, keyboardState->mouseX, keyboardState->mouseY, 16, 16, 0xFFFFFF);
+
+static void InitScene2(void) {}
+
+static void CloseScene2(void) {
+    StopAllSounds(g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
+}
+
+static void Scene2(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
+    DrawRectangle(graphicsBuffer, 0, 0, graphicsBuffer->width, graphicsBuffer->height, 0xFFFFFF);
+    DrawRectangle(graphicsBuffer, keyboardState->mouseX, keyboardState->mouseY, 16, 16, 0x000000);
+
+    if (keyboardState->mouseLeft.isDown) {
+        g_gameState.currentScene = &Scene1;
+        CloseScene2();
+        InitScene1();
+        return;
+    }
+}
 
 
+void OnStartup(void) {
+    InitScene1();
+    g_gameState.currentScene = &Scene1;
+}
+
+void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
+    (*g_gameState.currentScene)(graphicsBuffer, soundBuffer, keyboardState, deltaTime);
     ProcessSound(soundBuffer, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
 }

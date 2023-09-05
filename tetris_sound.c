@@ -104,6 +104,12 @@ void StopSound(i32 index, audio_channel* channels) {
     channels[index].samples = 0;
 }
 
+void StopAllSounds(audio_channel* channels, i32 channelCount) {
+    for (i32 i = 0; i < channelCount; ++i) {
+        channels[i].samples = 0;
+    }
+}
+
 void ProcessSound(sound_buffer* soundBuffer, audio_channel* channels, i32 channelCount) {
     i16* samples = soundBuffer->samples;
     for (i32 i = 0; i < soundBuffer->samplesCount; ++i) {
