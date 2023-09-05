@@ -155,7 +155,7 @@ static b32 IsTetrominoPosValid(board_t* board, tetromino_t* tetromino) {
     return true;
 }
 
-static b32 ProcessLineClears(board_t* board, tetromino_t* tetromino) {
+static i32 ProcessLineClears(board_t* board, tetromino_t* tetromino) {
     i32 lineClearCount = 0;
 
     i32 y = tetromino->y + 3;
@@ -184,21 +184,20 @@ static b32 ProcessLineClears(board_t* board, tetromino_t* tetromino) {
 }
 
 static void RandomizeBag(tetromino_type* bag) {
-    bag[0] = bag[7];
-    for (i32 i = 1; i < 7;) {
+    for (i32 i = 0; i < 7;) {
         i32 attempt = RandomI32InRange(1, 7);
         for (i32 j = 0; j < i; ++j) {
             if (bag[j] == attempt) {
-                attempt = 0;
+                attempt = -1;
                 break;
             }
         }
-        if (attempt == 0) {
+        if (attempt == -1) {
             continue;
         }
-        bag[i++] = attempt;
+        bag[i] = attempt;
+        ++i;
     }
-    bag[7] = RandomI32InRange(1, 7);
 }
 
 static tetromino_type GetNextTetrominoFromBag(tetromino_type* bag, i32* bagIndex) {
@@ -206,7 +205,7 @@ static tetromino_type GetNextTetrominoFromBag(tetromino_type* bag, i32* bagIndex
 
     if (*bagIndex >= 7) {
         *bagIndex = 0;
-        RandomizeBag(bag, 7);
+        RandomizeBag(bag);
     }
 
     return result;
@@ -219,10 +218,10 @@ typedef struct game_state {
 
     board_t board;
     tetromino_t current;
-    tetromino_t next;
+    tetromino_t next[3];
     tetromino_t hold;
     b32 didUseHoldBox;
-    tetromino_type bag[8];
+    tetromino_type bag[7];
     i32 bagIndex;
     i32 score;
     i32 level;
@@ -251,7 +250,7 @@ void OnStartup(void) {
     g_gameData.tetrominoes[6] = LoadBMP("assets/tetromino_blue.bmp");
     g_gameData.tetrominoes[7] = LoadBMP("assets/tetromino_orange.bmp");
 
-    g_gameData.background = LoadBMP("assets/background.bmp");
+    g_gameData.background = LoadBMP("assets/background_test.bmp");
 
     g_gameData.testWAVData1 = LoadWAV("assets/wav_test3.wav");
     g_gameData.testWAVData2 = LoadWAV("assets/explosion.wav");
@@ -260,14 +259,15 @@ void OnStartup(void) {
 
     RandomInit();
 
-    g_gameState.board = InitBoard(BOARD_WIDTH, BOARD_HEIGHT, 470, 20, 34);
+    g_gameState.board = InitBoard(BOARD_WIDTH, BOARD_HEIGHT, 490, 60, 30);
 
-    g_gameState.bag[7] = RandomI32InRange(1, 7);
     RandomizeBag(g_gameState.bag);
 
     g_gameState.current = InitTetromino(GetNextTetrominoFromBag(g_gameState.bag, &g_gameState.bagIndex), 0, BOARD_WIDTH / 2 - 2, BOARD_HEIGHT - 4);
-    g_gameState.next = InitTetromino(GetNextTetrominoFromBag(g_gameState.bag, &g_gameState.bagIndex), 0, 838, 564);
-    g_gameState.hold = InitTetromino(tetromino_type_empty, 0, 838, 400);
+    g_gameState.next[0] = InitTetromino(GetNextTetrominoFromBag(g_gameState.bag, &g_gameState.bagIndex), 0, 310, 480);
+    g_gameState.next[1] = InitTetromino(GetNextTetrominoFromBag(g_gameState.bag, &g_gameState.bagIndex), 0, 310, 360);
+    g_gameState.next[2] = InitTetromino(GetNextTetrominoFromBag(g_gameState.bag, &g_gameState.bagIndex), 0, 310, 240);
+    g_gameState.hold = InitTetromino(tetromino_type_empty, 0, 850, 480);
 
     g_gameState.score = 0;
     g_gameState.level = 1;
@@ -334,8 +334,10 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
 
         tetromino_type currentType = g_gameState.current.type;
         if (g_gameState.hold.type == tetromino_type_empty) {
-            g_gameState.current = InitTetromino(g_gameState.next.type, 0, BOARD_WIDTH / 2 - 2, BOARD_HEIGHT - 4, &g_gameData.tetrominoes);
-            g_gameState.next.type = GetNextTetrominoFromBag(g_gameState.bag, &g_gameState.bagIndex);
+            g_gameState.current = InitTetromino(g_gameState.next[0].type, 0, BOARD_WIDTH / 2 - 2, BOARD_HEIGHT - 4, &g_gameData.tetrominoes);
+            g_gameState.next[0].type = g_gameState.next[1].type;
+            g_gameState.next[1].type = g_gameState.next[2].type;
+            g_gameState.next[2].type = GetNextTetrominoFromBag(g_gameState.bag, &g_gameState.bagIndex);
         }
         else {
             g_gameState.current = InitTetromino(g_gameState.hold.type, 0, BOARD_WIDTH / 2 - 2, BOARD_HEIGHT - 4, &g_gameData.tetrominoes);
@@ -352,16 +354,13 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
         ++g_gameState.current.y;
     }
 
-    f32 gravityInSeconds;
-    if (keyboardState->down.isDown) {
-        gravityInSeconds = 0.033f;
+    f32 gravityInSeconds = 1.0f;
+    f32 base = 0.8f - (g_gameState.level - 1) * 0.007f;
+    for (i32 i = 0; i < g_gameState.level - 1; ++i) {
+        gravityInSeconds *= base;
     }
-    else {
-        gravityInSeconds = 1.0f;
-        f32 base = 0.8f - (g_gameState.level - 1) * 0.007f;
-        for (i32 i = 0; i < g_gameState.level - 1; ++i) {
-            gravityInSeconds *= base;
-        }
+    if (keyboardState->down.isDown && gravityInSeconds > SOFT_DROP_SPEED) {
+        gravityInSeconds = SOFT_DROP_SPEED;
     }
 
     g_gameState.timerFallSpeed += deltaTime;
@@ -396,13 +395,22 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
                 PlaySound(&g_gameData.testWAVData2, false, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
             }
 
-            g_gameState.current = InitTetromino(g_gameState.next.type, 0, BOARD_WIDTH / 2 - 2, BOARD_HEIGHT - 4, &g_gameData.tetrominoes);
-            g_gameState.next.type = GetNextTetrominoFromBag(g_gameState.bag, &g_gameState.bagIndex);
+            g_gameState.current = InitTetromino(g_gameState.next[0].type, 0, BOARD_WIDTH / 2 - 2, BOARD_HEIGHT - 4, &g_gameData.tetrominoes);
+            g_gameState.next[0].type = g_gameState.next[1].type;
+            g_gameState.next[1].type = g_gameState.next[2].type;
+            g_gameState.next[2].type = GetNextTetrominoFromBag(g_gameState.bag, &g_gameState.bagIndex);
 
             if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
                 ClearBoard(&g_gameState.board);
-                RandomizeBag(g_gameState.bag);
+
+                RandomizeBag(g_gameState.bag); 
+                g_gameState.current.type = GetNextTetrominoFromBag(g_gameState.bag, &g_gameState.bagIndex);
+                g_gameState.next[0].type = GetNextTetrominoFromBag(g_gameState.bag, &g_gameState.bagIndex);
+                g_gameState.next[1].type = GetNextTetrominoFromBag(g_gameState.bag, &g_gameState.bagIndex);
+                g_gameState.next[2].type = GetNextTetrominoFromBag(g_gameState.bag, &g_gameState.bagIndex);
+
                 g_gameState.hold.type = tetromino_type_empty;
+
                 g_gameState.score = 0;
                 g_gameState.level = 1;
             }
@@ -423,11 +431,13 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
 
     DrawTetrominoInBoard(graphicsBuffer, &g_gameState.board, &g_gameState.current, &g_gameData.tetrominoes[g_gameState.current.type], OPACITY_DEFAULT);
 
-    DrawTetrominoInBoard(graphicsBuffer, &g_gameState.board, &ghost, &g_gameData.tetrominoes[ghost.type], 64);
+    DrawTetrominoInBoard(graphicsBuffer, &g_gameState.board, &ghost, &g_gameData.tetrominoes[ghost.type], 128);
 
-    DrawTetrominoInScreen(graphicsBuffer, &g_gameState.next, g_gameState.board.tileSize, &g_gameData.tetrominoes[g_gameState.next.type], OPACITY_DEFAULT);
+    DrawTetrominoInScreen(graphicsBuffer, &g_gameState.next[0], g_gameState.board.tileSize, &g_gameData.tetrominoes[g_gameState.next[0].type], OPACITY_DEFAULT);
+    DrawTetrominoInScreen(graphicsBuffer, &g_gameState.next[1], g_gameState.board.tileSize, &g_gameData.tetrominoes[g_gameState.next[1].type], OPACITY_DEFAULT);
+    DrawTetrominoInScreen(graphicsBuffer, &g_gameState.next[2], g_gameState.board.tileSize, &g_gameData.tetrominoes[g_gameState.next[2].type], OPACITY_DEFAULT);
 
-    DrawTetrominoInScreen(graphicsBuffer, &g_gameState.hold, g_gameState.board.tileSize, &g_gameData.tetrominoes[g_gameState.hold.type], g_gameState.didUseHoldBox ? 192 : OPACITY_NONE);
+    DrawTetrominoInScreen(graphicsBuffer, &g_gameState.hold, g_gameState.board.tileSize, &g_gameData.tetrominoes[g_gameState.hold.type], g_gameState.didUseHoldBox ? 128 : OPACITY_DEFAULT);
 
     DrawRectangle(graphicsBuffer, keyboardState->mouseX, keyboardState->mouseY, 16, 16, 0xFFFFFF);
 
