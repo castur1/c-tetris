@@ -452,9 +452,9 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
 
     soundBytesPerFrame = secondsPerFrame * SOUND_SAMPLES_PER_SECOND * SOUND_BYTES_PER_SAMPLE;
 
-    InitBitmap(&g_bitmapBuffer, BITMAP_WIDTH, BITMAP_HEIGHT);
-
     keyboard_state keyboardState = { 0 };
+
+    InitBitmap(&g_bitmapBuffer, BITMAP_WIDTH, BITMAP_HEIGHT);
 
     OnStartup();
 

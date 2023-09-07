@@ -81,7 +81,7 @@ bitmap_buffer LoadBMP(const char* filePath) {
         u32* newMemory = EngineAllocate(4 * pixelCount);
         u32* newMemoryDummy = newMemory;
         for (i32 i = 0; i < 3 * pixelCount; i += 3) {
-            *newMemory++ = *(u32*)((u8*)bitmap.memory + i) & 0x00FFFFFF;
+            *newMemory++ = (*(u32*)((u8*)bitmap.memory + i) & 0x00FFFFFF) | 0xFF000000;
         }
         bitmap.memory = newMemoryDummy;
     }
@@ -145,15 +145,18 @@ void DrawBitmap(bitmap_buffer* graphicsBuffer, bitmap_buffer* bitmap, i32 x, i32
 
     u8* rowDest = (u8*)graphicsBuffer->memory + yMin * graphicsBuffer->pitch + xMin * graphicsBuffer->bytesPerPixel;
     u32* source = bitmap->memory;
-    f32 sourceY = sourceYOffset;
+    f64 sourceY = sourceYOffset;
     for (i32 y = yMin; y < yMax; ++y) {
         u32* dest = rowDest;
-        f32 sourceIndex = sourceXOffset + (i32)sourceY * bitmap->width;
+        f64 sourceIndex = sourceXOffset + (i32)sourceY * bitmap->width;
         for (i32 x = xMin; x < xMax; ++x) {
-            if (opacity != OPACITY_NONE) {
-                u32 sc = source[(i32)sourceIndex];
+            u32 sc = source[(i32)sourceIndex];
+            u8 sa = sc >> 24;
 
-                u8 sa = sc >> 24;
+            if (sa == 255 && opacity == 255) {
+                *dest++ = source[(i32)sourceIndex];
+            }
+            else {
                 u8 sr = sc >> 16;
                 u8 sg = sc >> 8;
                 u8 sb = sc;
@@ -162,10 +165,7 @@ void DrawBitmap(bitmap_buffer* graphicsBuffer, bitmap_buffer* bitmap, i32 x, i32
                 u8 dg = *dest >> 8;
                 u8 db = *dest;
 
-                if (opacity != OPACITY_DEFAULT) {
-                    sa = Min(sa, opacity);
-                }
-
+                sa = Min(sa, opacity);
                 f32 t = sa / 255.0f;
                 u32 r = dr + t * (i32)(sr - dr);
                 u32 g = dg + t * (i32)(sg - dg);
@@ -173,13 +173,22 @@ void DrawBitmap(bitmap_buffer* graphicsBuffer, bitmap_buffer* bitmap, i32 x, i32
 
                 *dest++ = RGBToU32(r, g, b);
             }
-            else {
-                *dest++ = source[(i32)sourceIndex];
-            }
-            
+
             sourceIndex += ratio;
         }
         rowDest += graphicsBuffer->pitch;
         sourceY += ratio;
+    }
+}
+
+void DrawBitmapStupid(bitmap_buffer* graphicsBuffer, bitmap_buffer* bitmap, i32 x, i32 y) {
+    u8* rowDest = (u8*)graphicsBuffer->memory + y * graphicsBuffer->pitch + x * graphicsBuffer->bytesPerPixel;
+    u32* source = bitmap->memory;
+    for (i32 y = 0; y < bitmap->height; ++y) {
+        u32* pixel = rowDest;
+        for (i32 x = 0; x < bitmap->width; ++x) {
+            *pixel++ = *source++;
+        }
+        rowDest += graphicsBuffer->pitch;
     }
 }
