@@ -409,7 +409,7 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
         .lpfnWndProc = WndProc,
         .hInstance = instance,
         .lpszClassName = "tetris window class",
-        .hIcon = LoadImageA(0, "assets/icon_test.ico", IMAGE_ICON, 0, 0, LR_DEFAULTSIZE | LR_LOADFROMFILE),
+        .hIcon = LoadImageA(0, "assets/icon.ico", IMAGE_ICON, 0, 0, LR_DEFAULTSIZE | LR_LOADFROMFILE),
         .hCursor = LoadImageA(0, MAKEINTRESOURCE(IDC_ARROW), IMAGE_CURSOR, 0, 0, LR_DEFAULTSIZE | LR_SHARED),
     };
     if (!RegisterClass(&windowClass)) {

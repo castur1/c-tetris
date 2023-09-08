@@ -441,16 +441,16 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
             g_gameState.lines += lineClearCount;
             switch (lineClearCount) {
                 case 1: {
-                    g_gameState.score += 1;
+                    g_gameState.score += 40 * g_gameState.level;
                 } break;
                 case 2: {
-                    g_gameState.score += 3;
+                    g_gameState.score += 100 * g_gameState.level;
                 } break;
                 case 3: {
-                    g_gameState.score += 5;
+                    g_gameState.score += 300 * g_gameState.level;
                 } break;
                 case 4: {
-                    g_gameState.score += 8;
+                    g_gameState.score += 1200 * g_gameState.level;
                 } break;
             }
 
@@ -487,7 +487,7 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
 
     DrawTetrominoInBoard(graphicsBuffer, &g_gameState.board, &g_gameState.current, &g_gameData.tetrominoes[g_gameState.current.type], 255);
 
-    DrawTetrominoInBoard(graphicsBuffer, &g_gameState.board, &ghost, &g_gameData.tetrominoes[ghost.type], 128);
+    DrawTetrominoInBoard(graphicsBuffer, &g_gameState.board, &ghost, &g_gameData.tetrominoes[ghost.type], 64); // <-- Feedback :)
 
     DrawBitmap(graphicsBuffer, &g_gameData.tetrominoesUI[g_gameState.next[0].type], g_gameState.next[0].x, g_gameState.next[0].y, 90, 255);
     DrawBitmap(graphicsBuffer, &g_gameData.tetrominoesUI[g_gameState.next[1].type], g_gameState.next[1].x, g_gameState.next[1].y, 90, 255);

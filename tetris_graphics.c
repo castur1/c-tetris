@@ -152,8 +152,9 @@ void DrawBitmap(bitmap_buffer* graphicsBuffer, bitmap_buffer* bitmap, i32 x, i32
         for (i32 x = xMin; x < xMax; ++x) {
             u32 sc = source[(i32)sourceIndex];
             u8 sa = sc >> 24;
+            sa = Min(sa, opacity);
 
-            if (sa == 255 && opacity == 255) {
+            if (sa == 255) {
                 *dest++ = source[(i32)sourceIndex];
             }
             else {
@@ -165,7 +166,6 @@ void DrawBitmap(bitmap_buffer* graphicsBuffer, bitmap_buffer* bitmap, i32 x, i32
                 u8 dg = *dest >> 8;
                 u8 db = *dest;
 
-                sa = Min(sa, opacity);
                 f32 t = sa / 255.0f;
                 u32 r = dr + t * (i32)(sr - dr);
                 u32 g = dg + t * (i32)(sg - dg);
