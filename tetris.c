@@ -10,8 +10,9 @@
 #define BOARD_HEIGHT 20
 
 #define AUTO_MOVE_DELAY 0.2f
-#define AUTO_MOVE_SPEED 0.05f
-#define SOFT_DROP_SPEED 0.033f
+#define AUTO_MOVE 0.05f
+#define SOFT_DROP 0.033f
+#define LOCK_DELAY 0.5f
 
 #define PRESSED(key) (key.isDown && key.didChangeState)
 
@@ -74,9 +75,10 @@ typedef struct game_state {
 
     // Scene 1 //
 
-    f32 timerFallSpeed;
+    f32 timerFall;
     f32 timerAutoMoveDelay;
-    f32 timerAutoMoveSpeed;
+    f32 timerAutoMove;
+    f32 timerLockDelay;
 
     board_t board;
     tetromino_t current;
@@ -266,6 +268,16 @@ static tetromino_type GetNextTetrominoFromBag(tetromino_type* bag, i32* bagIndex
     return result;
 }
 
+static f32 GetCurrentGravityInSeconds(i32 level) {
+    f32 gravityInSeconds = 1.0f;
+    f32 base = 0.8f - (level - 1) * 0.007f;
+    for (i32 i = 0; i < level - 1; ++i) {
+        gravityInSeconds *= base;
+    }
+
+    return gravityInSeconds;
+}
+
 
 static void InitScene1(void) {
     g_gameData.tetrominoes[1] = LoadBMP("assets/tetromino_cyan.bmp");
@@ -339,10 +351,10 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     if (keyboardState->right.isDown) {
         g_gameState.timerAutoMoveDelay += deltaTime;
         if (g_gameState.timerAutoMoveDelay >= AUTO_MOVE_DELAY) {
-            g_gameState.timerAutoMoveSpeed += deltaTime;
+            g_gameState.timerAutoMove += deltaTime;
         }
-        if (g_gameState.timerAutoMoveSpeed >= AUTO_MOVE_SPEED || keyboardState->right.didChangeState) {
-            g_gameState.timerAutoMoveSpeed = 0.0f;
+        if (g_gameState.timerAutoMove >= AUTO_MOVE || keyboardState->right.didChangeState) {
+            g_gameState.timerAutoMove = 0.0f;
             ++g_gameState.current.x;
             if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
                 --g_gameState.current.x;
@@ -352,10 +364,10 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     else if (keyboardState->left.isDown) {
         g_gameState.timerAutoMoveDelay += deltaTime;
         if (g_gameState.timerAutoMoveDelay >= AUTO_MOVE_DELAY) {
-            g_gameState.timerAutoMoveSpeed += deltaTime;
+            g_gameState.timerAutoMove += deltaTime;
         }
-        if (g_gameState.timerAutoMoveSpeed >= AUTO_MOVE_SPEED || keyboardState->left.didChangeState) {
-            g_gameState.timerAutoMoveSpeed = 0.0f;
+        if (g_gameState.timerAutoMove >= AUTO_MOVE || keyboardState->left.didChangeState) {
+            g_gameState.timerAutoMove = 0.0f;
             --g_gameState.current.x;
             if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
                 ++g_gameState.current.x;
@@ -366,30 +378,29 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
         g_gameState.timerAutoMoveDelay = 0.0f;
     }
 
-    if (PRESSED(keyboardState->x)) {
-        g_gameState.current.rotation = (g_gameState.current.rotation + 5) % 4;
+    i32 rotationDirection = PRESSED(keyboardState->x) - PRESSED(keyboardState->z);
+    if (rotationDirection) {
+        b32 didRotate = true;
+
+        g_gameState.current.rotation = (g_gameState.current.rotation + rotationDirection + 4) % 4;
         if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
-            ++g_gameState.current.x;
+            g_gameState.current.x += 1;
             if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
                 g_gameState.current.x -= 2;
                 if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
-                    ++g_gameState.current.x;
-                    g_gameState.current.rotation = (g_gameState.current.rotation + 3) % 4;
+                    g_gameState.current.x += 1;
+                    g_gameState.current.y += 1;
+                    if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
+                        g_gameState.current.y -= 1;
+                        g_gameState.current.rotation = (g_gameState.current.rotation - rotationDirection + 4) % 4;
+                        didRotate = false;
+                    }
                 }
             }
         }
-    }
-    else if (PRESSED(keyboardState->z)) {
-        g_gameState.current.rotation = (g_gameState.current.rotation + 3) % 4;
-        if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
-            ++g_gameState.current.x;
-            if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
-                g_gameState.current.x -= 2;
-                if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
-                    ++g_gameState.current.x;
-                    g_gameState.current.rotation = (g_gameState.current.rotation + 5) % 4;
-                }
-            }
+
+        if (didRotate) {
+            //g_gameState.timerLockDelay = 0.0f;
         }
     }
 
@@ -410,7 +421,7 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     }
 
     b32 didHardDrop = false;
-    if (keyboardState->up.isDown && keyboardState->up.didChangeState) {
+    if (PRESSED(keyboardState->up)) {
         didHardDrop = true;
         while (IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
             --g_gameState.current.y;
@@ -418,60 +429,63 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
         ++g_gameState.current.y;
     }
 
-    f32 gravityInSeconds = 1.0f;
-    f32 base = 0.8f - (g_gameState.level - 1) * 0.007f;
-    for (i32 i = 0; i < g_gameState.level - 1; ++i) {
-        gravityInSeconds *= base;
-    }
-    if (keyboardState->down.isDown && gravityInSeconds > SOFT_DROP_SPEED) {
-        gravityInSeconds = SOFT_DROP_SPEED;
+    f32 gravityInSeconds = GetCurrentGravityInSeconds(g_gameState.level);
+    if (keyboardState->down.isDown && gravityInSeconds > SOFT_DROP) {
+        gravityInSeconds = SOFT_DROP;
     }
 
-    g_gameState.timerFallSpeed += deltaTime;
-    if (g_gameState.timerFallSpeed >= gravityInSeconds || didHardDrop) {
-        g_gameState.timerFallSpeed = 0.0f;
+    g_gameState.timerFall += deltaTime;
+    if (g_gameState.timerFall >= gravityInSeconds || didHardDrop || g_gameState.timerLockDelay >= 0.001f) {
+        g_gameState.timerFall = 0.0f;
 
         --g_gameState.current.y;
 
         if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
             ++g_gameState.current.y;
-            PlaceTetromino(&g_gameState.board, &g_gameState.current);
 
-            i32 lineClearCount = ProcessLineClears(&g_gameState.board, &g_gameState.current);
-            g_gameState.lines += lineClearCount;
-            switch (lineClearCount) {
-                case 1: {
-                    g_gameState.score += 40 * g_gameState.level;
-                } break;
-                case 2: {
-                    g_gameState.score += 100 * g_gameState.level;
-                } break;
-                case 3: {
-                    g_gameState.score += 300 * g_gameState.level;
-                } break;
-                case 4: {
-                    g_gameState.score += 1200 * g_gameState.level;
-                } break;
+            g_gameState.timerLockDelay += deltaTime;
+            if (g_gameState.timerLockDelay >= LOCK_DELAY || didHardDrop) {
+                PlaceTetromino(&g_gameState.board, &g_gameState.current);
+
+                i32 lineClearCount = ProcessLineClears(&g_gameState.board, &g_gameState.current);
+                g_gameState.lines += lineClearCount;
+                switch (lineClearCount) {
+                    case 1: {
+                        g_gameState.score += 40 * g_gameState.level;
+                    } break;
+                    case 2: {
+                        g_gameState.score += 100 * g_gameState.level;
+                    } break;
+                    case 3: {
+                        g_gameState.score += 300 * g_gameState.level;
+                    } break;
+                    case 4: {
+                        g_gameState.score += 1200 * g_gameState.level;
+                    } break;
+                }
+
+                if (g_gameState.lines >= g_gameState.level * 10) {
+                    ++g_gameState.level;
+                    PlaySound(&g_gameData.testWAVData2, false, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
+                }
+
+                g_gameState.current = InitTetromino(g_gameState.next[0].type, 0, BOARD_WIDTH / 2 - 2, BOARD_HEIGHT - 4, &g_gameData.tetrominoes);
+                g_gameState.next[0].type = g_gameState.next[1].type;
+                g_gameState.next[1].type = g_gameState.next[2].type;
+                g_gameState.next[2].type = GetNextTetrominoFromBag(g_gameState.bag, &g_gameState.bagIndex);
+
+                if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
+                    g_gameState.currentScene = &Scene2;
+                    CloseScene1();
+                    InitScene2();
+                    return;
+                }
+
+                g_gameState.didUseHoldBox = false;
             }
-
-            if (g_gameState.lines >= g_gameState.level * 10) {
-                ++g_gameState.level;
-                PlaySound(&g_gameData.testWAVData2, false, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
-            }
-
-            g_gameState.current = InitTetromino(g_gameState.next[0].type, 0, BOARD_WIDTH / 2 - 2, BOARD_HEIGHT - 4, &g_gameData.tetrominoes);
-            g_gameState.next[0].type = g_gameState.next[1].type;
-            g_gameState.next[1].type = g_gameState.next[2].type;
-            g_gameState.next[2].type = GetNextTetrominoFromBag(g_gameState.bag, &g_gameState.bagIndex);
-
-            if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
-                g_gameState.currentScene = &Scene2;
-                CloseScene1();
-                InitScene2();
-                return;
-            }
-
-            g_gameState.didUseHoldBox = false;
+        }
+        else {
+            g_gameState.timerLockDelay = 0.0f;
         }
     }
 
