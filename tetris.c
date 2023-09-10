@@ -103,6 +103,8 @@ typedef struct game_data {
 
     bitmap_buffer background;
 
+    bitmap_buffer digits[10];
+
     sound_buffer testWAVData1;
     sound_buffer testWAVData2;
 
@@ -296,7 +298,18 @@ static void InitScene1(void) {
     g_gameData.tetrominoesUI[6] = LoadBMP("assets/tetromino_J_UI.bmp");
     g_gameData.tetrominoesUI[7] = LoadBMP("assets/tetromino_L_UI.bmp");
 
-    g_gameData.background = LoadBMP("assets/background.bmp");
+    g_gameData.background = LoadBMP("assets/background2.bmp");
+
+    g_gameData.digits[0] = LoadBMP("assets/digit_0.bmp");
+    g_gameData.digits[1] = LoadBMP("assets/digit_1.bmp");
+    g_gameData.digits[2] = LoadBMP("assets/digit_2.bmp");
+    g_gameData.digits[3] = LoadBMP("assets/digit_3.bmp");
+    g_gameData.digits[4] = LoadBMP("assets/digit_4.bmp");
+    g_gameData.digits[5] = LoadBMP("assets/digit_5.bmp");
+    g_gameData.digits[6] = LoadBMP("assets/digit_6.bmp");
+    g_gameData.digits[7] = LoadBMP("assets/digit_7.bmp");
+    g_gameData.digits[8] = LoadBMP("assets/digit_8.bmp");
+    g_gameData.digits[9] = LoadBMP("assets/digit_9.bmp");
 
     g_gameData.testWAVData1 = LoadWAV("assets/wav_test3.wav");
     g_gameData.testWAVData2 = LoadWAV("assets/explosion.wav");
@@ -338,6 +351,17 @@ static void CloseScene1(void) {
     EngineFree(g_gameData.tetrominoesUI[7].memory);
 
     EngineFree(g_gameData.background.memory);
+
+    EngineFree(g_gameData.digits[0].memory);
+    EngineFree(g_gameData.digits[1].memory);
+    EngineFree(g_gameData.digits[2].memory);
+    EngineFree(g_gameData.digits[3].memory);
+    EngineFree(g_gameData.digits[4].memory);
+    EngineFree(g_gameData.digits[5].memory);
+    EngineFree(g_gameData.digits[6].memory);
+    EngineFree(g_gameData.digits[7].memory);
+    EngineFree(g_gameData.digits[8].memory);
+    EngineFree(g_gameData.digits[9].memory);
 
     EngineFree(g_gameData.testWAVData1.samples);
     EngineFree(g_gameData.testWAVData2.samples);
@@ -508,6 +532,13 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     DrawBitmap(graphicsBuffer, &g_gameData.tetrominoesUI[g_gameState.next[2].type], g_gameState.next[2].x, g_gameState.next[2].y, 90, 255);
 
     DrawBitmap(graphicsBuffer, &g_gameData.tetrominoesUI[g_gameState.hold.type], g_gameState.hold.x, g_gameState.hold.y, 90, g_gameState.didUseHoldBox ? 128 : 255);
+
+    DrawNumber(graphicsBuffer, g_gameState.level, 578, 328, 15, 2, true, g_gameData.digits);
+    DrawNumber(graphicsBuffer, g_gameState.score, 578, 238, 15, 2, true, g_gameData.digits);
+    DrawNumber(graphicsBuffer, g_gameState.lines, 578, 148, 15, 2, true, g_gameData.digits);
+
+    extern u32 DEBUG_microsecondsElapsed;
+    DrawNumber(graphicsBuffer, DEBUG_microsecondsElapsed, 10, 10, 15, 2, false, g_gameData.digits);
 }
 
 

@@ -248,6 +248,7 @@ static void InitBitmap(win32_bitmap* bitmap, i32 width, i32 height) {
 
 static void DisplayBitmapInWindow(const win32_bitmap* bitmap, HDC deviceContext, i32 windowWidth, i32 windowHeight) { 
     SetStretchBltMode(deviceContext, STRETCH_DELETESCANS);
+    // SetStretchBltMode(deviceContext, STRETCH_HALFTONE); // Too slow...
 
     f32 bitmapAspectRatio = (f32)bitmap->width / bitmap->height;
     if (windowHeight * bitmapAspectRatio < windowWidth) {
@@ -383,6 +384,8 @@ static void GetCursorPosition(HWND window, win32_bitmap* bitmap, i32* outX, i32*
         *outY = Clamp(*outY, 0, bitmap->height);
     }
 }
+
+u32 DEBUG_microsecondsElapsed;
 
 static LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
     switch (message) {
@@ -530,13 +533,15 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
             secondsForLastFrame = secondsElapsedForFrame;
         }
 
-#if 1
         f32 debugElapsed = PerformanceCountDiffInSeconds(performanceCountAtStartOfFrame, performanceCountAtEndOfFrame, performanceFrequence);
+        DEBUG_microsecondsElapsed = 1000000 * debugElapsed;
+#if 0
         f32 debugSeconds = PerformanceCountDiffInSeconds(performanceCountAtStartOfFrame, GetCurrentPerformanceCount(), performanceFrequence);
         f32 debugFPS = 1.0f / debugSeconds;
         char debugBuffer[64];
         sprintf_s(debugBuffer, 64, "%.2f ms/f, %.2f fps, %.2f elapsed\n", 1000.0f * debugSeconds, debugFPS, 1000.0f * debugElapsed);
         OutputDebugStringA(debugBuffer);
+
 #endif
     }
 

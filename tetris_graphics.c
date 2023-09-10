@@ -192,3 +192,23 @@ void DrawBitmapStupid(bitmap_buffer* graphicsBuffer, bitmap_buffer* bitmap, i32 
         rowDest += graphicsBuffer->pitch;
     }
 }
+
+void DrawNumber(bitmap_buffer* graphicsBuffer, u32 number, i32 x, i32 y, i32 digitWidth, i32 spacing, b32 isCentreAligned, bitmap_buffer* digits) {
+    i32 digitCount = 1;
+    u32 denom = 1;
+    u32 numberCopy = number;
+    while (numberCopy /= 10) {
+        ++digitCount;
+        denom *= 10;
+    }
+
+    if (isCentreAligned) {
+        x -= digitCount * (digitWidth + spacing) / 2;
+    }
+
+    for (i32 i = 0; i < digitCount; ++i) {
+        DrawBitmap(graphicsBuffer, &digits[number / denom], x + i * (digitWidth + spacing), y, digitWidth, 255);
+        number %= denom;
+        denom /= 10;
+    }
+}
