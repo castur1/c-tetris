@@ -301,7 +301,7 @@ static void InitScene1(void) {
     g_gameData.testWAVData1 = LoadWAV("assets/wav_test3.wav");
     g_gameData.testWAVData2 = LoadWAV("assets/explosion.wav");
 
-    PlaySound(&g_gameData.testWAVData1, true, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
+    PlaySound(&g_gameData.testWAVData1, true, 0.5f, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
 
     RandomInit();
 
@@ -466,7 +466,7 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
 
                 if (g_gameState.lines >= g_gameState.level * 10) {
                     ++g_gameState.level;
-                    PlaySound(&g_gameData.testWAVData2, false, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
+                    PlaySound(&g_gameData.testWAVData2, false, 1.0f, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
                 }
 
                 g_gameState.current = InitTetromino(g_gameState.next[0].type, 0, BOARD_WIDTH / 2 - 2, BOARD_HEIGHT - 4, &g_gameData.tetrominoes);

@@ -86,14 +86,15 @@ sound_buffer LoadWAV(const char* filePath) {
     return result;
 }
 
-i32 PlaySound(sound_buffer* audioBuffer, b32 isLooping, audio_channel* channels, i32 channelsCount) {
+i32 PlaySound(sound_buffer* audioBuffer, b32 isLooping, f32 volume, audio_channel* channels, i32 channelsCount) {
     for (i32 i = 0; i < channelsCount; ++i) {
         if (!channels[i].samples) {
             channels[i] = (audio_channel){
                 .samples = audioBuffer->samples,
                 .samplesCount = audioBuffer->samplesCount,
                 .sampleIndex = 0,
-                .isLooping = isLooping
+                .isLooping = isLooping,
+                .volume = volume
             };
             return i;
         }
@@ -120,8 +121,8 @@ void ProcessSound(sound_buffer* soundBuffer, audio_channel* channels, i32 channe
                 continue;
             }
 
-            sampleLeft  += channels[j].samples[channels[j].sampleIndex++] / 32768.0f;
-            sampleRight += channels[j].samples[channels[j].sampleIndex++] / 32768.0f;
+            sampleLeft  += (channels[j].samples[channels[j].sampleIndex++] / 32768.0f) * channels[j].volume;
+            sampleRight += (channels[j].samples[channels[j].sampleIndex++] / 32768.0f) * channels[j].volume;
 
             if (channels[j].sampleIndex >= channels[j].samplesCount) {
                 if (channels[j].isLooping) {
