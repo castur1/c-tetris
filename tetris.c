@@ -505,6 +505,7 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
                     return;
                 }
 
+                g_gameState.timerLockDelay = 0.0f;
                 g_gameState.didUseHoldBox = false;
             }
         }

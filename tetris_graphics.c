@@ -140,6 +140,7 @@ void DrawBitmap(bitmap_buffer* graphicsBuffer, bitmap_buffer* bitmap, i32 x, i32
     i32 xOffset = x < 0 ? -x : 0;
     i32 yOffset = y < 0 ? -y : 0;
 
+    // This is unneccesary, right? See BitBlt code in win32_tetris.c
     i32 sourceXOffset = xOffset * ratio;
     i32 sourceYOffset = yOffset * ratio;
 

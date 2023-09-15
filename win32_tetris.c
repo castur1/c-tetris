@@ -9,6 +9,8 @@
 #include <stdio.h>
 #include <math.h>
 
+#include <intrin.h>
+
 
 typedef struct win32_bitmap {
     BITMAPINFO info;
@@ -247,6 +249,7 @@ static void InitBitmap(win32_bitmap* bitmap, i32 width, i32 height) {
 #undef BYTES_PER_PIXEL
 
 static void DisplayBitmapInWindow(const win32_bitmap* bitmap, HDC deviceContext, i32 windowWidth, i32 windowHeight) { 
+#if 0
     SetStretchBltMode(deviceContext, STRETCH_DELETESCANS);
     // SetStretchBltMode(deviceContext, STRETCH_HALFTONE); // Too slow...
 
@@ -267,6 +270,97 @@ static void DisplayBitmapInWindow(const win32_bitmap* bitmap, HDC deviceContext,
         StretchDIBits(deviceContext, 0, yOffset, windowWidth, windowWidth / bitmapAspectRatio, \
             0, 0, bitmap->width, bitmap->height, bitmap->memory, &bitmap->info, DIB_RGB_COLORS, SRCCOPY);
     }
+#else
+    // This doesn't work for upscaling rn
+
+    f32 aspectRatio = bitmap->width / (f32)bitmap->height;
+
+    i32 newWidth = windowHeight * aspectRatio;
+    i32 newHeight = windowHeight;
+
+    if (newWidth >= windowWidth) {
+        newWidth = windowWidth;
+        newHeight = windowWidth / aspectRatio;
+    }
+
+    static u32* memory = 0;
+    if (memory == 0) {
+        i32 monitorWidth  = GetSystemMetrics(SM_CXSCREEN);
+        i32 monitorHeight = GetSystemMetrics(SM_CYSCREEN);
+        memory = VirtualAlloc(NULL, monitorWidth * monitorHeight * 4, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    }
+
+    f32 ratio = bitmap->width / (f32)(newWidth + 1);
+
+    u32* destRow = memory;
+    u32* source = bitmap->memory;
+    for (i32 y = 0; y < newHeight; ++y) { 
+        i32 y1 = y * ratio;
+        i32 y2 = (y + 1) * ratio;
+        
+        u32* sourceRow = source + y1 * bitmap->width;
+        u32* dest = destRow;
+        for (i32 x = 0; x < newWidth; ++x) {
+            i32 x1 = x * ratio;
+            i32 x2 = (x + 1) * ratio;
+
+            u32 pixelCount = (x2 - x1) * (y2 - y1);
+
+            if (pixelCount == 1) {
+                *dest++ = sourceRow[x1];
+                continue;
+            }
+
+            u32 r = 0;
+            u32 g = 0;
+            u32 b = 0;
+
+            u32* pixels = sourceRow;
+            for (i32 i = y1; i < y2; ++i) {
+                for (i32 j = x1; j < x2; ++j) {
+                    u32 c = pixels[j];
+                    r += (c >> 16) & 0xFF;
+                    g += (c >> 8) & 0xFF;
+                    b += c & 0xFF;
+                }
+                pixels += bitmap->width;
+            }
+
+            r /= pixelCount;
+            g /= pixelCount;
+            b /= pixelCount;
+            
+            *dest++ = (r << 16) | (g << 8) | b;
+        }
+        destRow += newWidth;
+    }
+
+    BITMAPINFO info = {
+        .bmiHeader = {
+            .biSize = sizeof(bitmap->info.bmiHeader),
+            .biWidth = newWidth,
+            .biHeight = newHeight,
+            .biPlanes = 1,
+            .biBitCount = 32,
+            .biCompression = BI_RGB
+        }
+    };
+
+    if (newWidth >= windowWidth) {
+        i32 yOffset = (windowHeight - newHeight) / 2;
+
+        PatBlt(deviceContext, 0, 0, windowWidth, yOffset, BLACKNESS);
+        PatBlt(deviceContext, 0, windowHeight - yOffset, windowWidth, windowHeight, BLACKNESS);
+        SetDIBitsToDevice(deviceContext, 0, yOffset, newWidth, newHeight, 0, 0, 0, newHeight, memory, &info, DIB_RGB_COLORS);
+    }
+    else {
+        i32 xOffset = (windowWidth  - newWidth)  / 2;
+
+        PatBlt(deviceContext, 0, 0, xOffset, windowHeight, BLACKNESS);
+        PatBlt(deviceContext, windowWidth - xOffset, 0, windowWidth, windowHeight, BLACKNESS);
+        SetDIBitsToDevice(deviceContext, xOffset, 0, newWidth, newHeight, 0, 0, 0, newHeight, memory, &info, DIB_RGB_COLORS);
+    }
+#endif
 }
 
 static void UpdateKeyboardKey(keyboard_key_state* keyState, b32 isDown) {
@@ -535,7 +629,7 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
 
         f32 debugElapsed = PerformanceCountDiffInSeconds(performanceCountAtStartOfFrame, performanceCountAtEndOfFrame, performanceFrequence);
         DEBUG_microsecondsElapsed = 1000000 * debugElapsed;
-#if 0
+#if 1
         f32 debugSeconds = PerformanceCountDiffInSeconds(performanceCountAtStartOfFrame, GetCurrentPerformanceCount(), performanceFrequence);
         f32 debugFPS = 1.0f / debugSeconds;
         char debugBuffer[64];
