@@ -111,7 +111,11 @@ void StopAllSounds(audio_channel* channels, i32 channelCount) {
     }
 }
 
-void ProcessSound(sound_buffer* soundBuffer, audio_channel* channels, i32 channelCount) {
+void SetSampleIndex(i32 sampleIndex, i32 index, audio_channel* channels) {
+    channels[index].sampleIndex = sampleIndex >= channels[index].samplesCount ? channels[index].samplesCount : sampleIndex < 0 ? 0 : sampleIndex;
+}
+
+void ProcessSound(sound_buffer* soundBuffer, audio_channel* channels, i32 channelCount, f32 volume) {
     i16* samples = soundBuffer->samples;
     for (i32 i = 0; i < soundBuffer->samplesCount; ++i) {
         f32 sampleLeft  = 0.0f;
@@ -121,8 +125,8 @@ void ProcessSound(sound_buffer* soundBuffer, audio_channel* channels, i32 channe
                 continue;
             }
 
-            sampleLeft  += (channels[j].samples[channels[j].sampleIndex++] / 32768.0f) * channels[j].volume;
-            sampleRight += (channels[j].samples[channels[j].sampleIndex++] / 32768.0f) * channels[j].volume;
+            sampleLeft  += (channels[j].samples[channels[j].sampleIndex++] / 32768.0f) * channels[j].volume * volume;
+            sampleRight += (channels[j].samples[channels[j].sampleIndex++] / 32768.0f) * channels[j].volume * volume;
 
             if (channels[j].sampleIndex >= channels[j].samplesCount) {
                 if (channels[j].isLooping) {

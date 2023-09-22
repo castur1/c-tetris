@@ -297,39 +297,39 @@ static void DisplayBitmapInWindow(const win32_bitmap* bitmap, HDC deviceContext,
     for (i32 y = 0; y < newHeight; ++y) { 
         i32 y1 = y * ratio;
         i32 y2 = (y + 1) * ratio;
-        
+    
         u32* sourceRow = source + y1 * bitmap->width;
         u32* dest = destRow;
         for (i32 x = 0; x < newWidth; ++x) {
             i32 x1 = x * ratio;
             i32 x2 = (x + 1) * ratio;
-
+    
             u32 pixelCount = (x2 - x1) * (y2 - y1);
-
+    
             if (pixelCount == 1) {
                 *dest++ = sourceRow[x1];
                 continue;
             }
-
+    
             u32 r = 0;
             u32 g = 0;
             u32 b = 0;
-
+    
             u32* pixels = sourceRow;
             for (i32 i = y1; i < y2; ++i) {
                 for (i32 j = x1; j < x2; ++j) {
                     u32 c = pixels[j];
                     r += (c >> 16) & 0xFF;
-                    g += (c >> 8) & 0xFF;
-                    b += c & 0xFF;
+                    g += (c >> 8)  & 0xFF;
+                    b += (c >> 0)  & 0xFF;
                 }
                 pixels += bitmap->width;
             }
-
+    
             r /= pixelCount;
             g /= pixelCount;
             b /= pixelCount;
-            
+    
             *dest++ = (r << 16) | (g << 8) | b;
         }
         destRow += newWidth;

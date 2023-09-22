@@ -4,15 +4,25 @@
 #include "tetris_random.h"
 
 
-#define AUDIO_CHANNEL_COUNT 16
+#define AUDIO_CHANNEL_COUNT 32
 
 #define BOARD_WIDTH  10
 #define BOARD_HEIGHT 20
 
 #define AUTO_MOVE_DELAY 0.2f
-#define AUTO_MOVE 0.05f
-#define SOFT_DROP 0.033f
-#define LOCK_DELAY 0.5f
+#define AUTO_MOVE       0.05f
+#define SOFT_DROP       0.033f
+#define LOCK_DELAY      0.5f
+
+#define BACKGROUND_MUSIC 0.6f
+#define SFX_MOVE         1.0f
+#define SFX_ROTATE       1.5f
+#define SFX_LOCK         2.0f
+#define SFX_LINE_CLEAR   1.5f
+#define SFX_HOLD         2.0f
+#define SFX_LEVEL_UP     1.5f
+#define SFX_SOFT_DROP    0.8f
+
 
 #define PRESSED(key) (key.isDown && key.didChangeState)
 
@@ -72,6 +82,7 @@ typedef void (*scene_pointer)(bitmap_buffer* graphicsBuffer, sound_buffer* sound
 typedef struct game_state {
     scene_pointer currentScene;
     audio_channel audioChannels[AUDIO_CHANNEL_COUNT];
+    f32 audioVolume;
 
     // Scene 1 //
 
@@ -105,8 +116,15 @@ typedef struct game_data {
 
     bitmap_buffer digits[10];
 
-    sound_buffer testWAVData1;
-    sound_buffer testWAVData2;
+    sound_buffer backgroundMusic;
+    sound_buffer sfxMove;
+    sound_buffer sfxRotate;
+    sound_buffer sfxLock;
+    sound_buffer sfxLineClear;
+    sound_buffer sfxHold;
+    sound_buffer sfxLevelUp;
+    sound_buffer sfxSoftDrop;
+    // Etc.?
 
     // Scene 2 //
 
@@ -282,39 +300,49 @@ static f32 GetCurrentGravityInSeconds(i32 level) {
 
 
 static void InitScene1(void) {
-    g_gameData.tetrominoes[1] = LoadBMP("assets/tetromino_cyan.bmp");
-    g_gameData.tetrominoes[2] = LoadBMP("assets/tetromino_yellow.bmp");
-    g_gameData.tetrominoes[3] = LoadBMP("assets/tetromino_purple.bmp");
-    g_gameData.tetrominoes[4] = LoadBMP("assets/tetromino_green.bmp");
-    g_gameData.tetrominoes[5] = LoadBMP("assets/tetromino_red.bmp");
-    g_gameData.tetrominoes[6] = LoadBMP("assets/tetromino_blue.bmp");
-    g_gameData.tetrominoes[7] = LoadBMP("assets/tetromino_orange.bmp");
+    g_gameData.tetrominoes[1] = LoadBMP("assets/graphics/tetrominoes/tetromino_cyan.bmp");
+    g_gameData.tetrominoes[2] = LoadBMP("assets/graphics/tetrominoes/tetromino_yellow.bmp");
+    g_gameData.tetrominoes[3] = LoadBMP("assets/graphics/tetrominoes/tetromino_purple.bmp");
+    g_gameData.tetrominoes[4] = LoadBMP("assets/graphics/tetrominoes/tetromino_green.bmp");
+    g_gameData.tetrominoes[5] = LoadBMP("assets/graphics/tetrominoes/tetromino_red.bmp");
+    g_gameData.tetrominoes[6] = LoadBMP("assets/graphics/tetrominoes/tetromino_blue.bmp");
+    g_gameData.tetrominoes[7] = LoadBMP("assets/graphics/tetrominoes/tetromino_orange.bmp");
 
-    g_gameData.tetrominoesUI[1] = LoadBMP("assets/tetromino_I_UI.bmp");
-    g_gameData.tetrominoesUI[2] = LoadBMP("assets/tetromino_O_UI.bmp");
-    g_gameData.tetrominoesUI[3] = LoadBMP("assets/tetromino_T_UI.bmp");
-    g_gameData.tetrominoesUI[4] = LoadBMP("assets/tetromino_S_UI.bmp");
-    g_gameData.tetrominoesUI[5] = LoadBMP("assets/tetromino_Z_UI.bmp");
-    g_gameData.tetrominoesUI[6] = LoadBMP("assets/tetromino_J_UI.bmp");
-    g_gameData.tetrominoesUI[7] = LoadBMP("assets/tetromino_L_UI.bmp");
+    g_gameData.tetrominoesUI[1] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_I_UI.bmp");
+    g_gameData.tetrominoesUI[2] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_O_UI.bmp");
+    g_gameData.tetrominoesUI[3] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_T_UI.bmp");
+    g_gameData.tetrominoesUI[4] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_S_UI.bmp");
+    g_gameData.tetrominoesUI[5] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_Z_UI.bmp");
+    g_gameData.tetrominoesUI[6] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_J_UI.bmp");
+    g_gameData.tetrominoesUI[7] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_L_UI.bmp");
 
-    g_gameData.background = LoadBMP("assets/background2.bmp");
+    g_gameData.background = LoadBMP("assets/graphics/background2.bmp");
 
-    g_gameData.digits[0] = LoadBMP("assets/digit_0.bmp");
-    g_gameData.digits[1] = LoadBMP("assets/digit_1.bmp");
-    g_gameData.digits[2] = LoadBMP("assets/digit_2.bmp");
-    g_gameData.digits[3] = LoadBMP("assets/digit_3.bmp");
-    g_gameData.digits[4] = LoadBMP("assets/digit_4.bmp");
-    g_gameData.digits[5] = LoadBMP("assets/digit_5.bmp");
-    g_gameData.digits[6] = LoadBMP("assets/digit_6.bmp");
-    g_gameData.digits[7] = LoadBMP("assets/digit_7.bmp");
-    g_gameData.digits[8] = LoadBMP("assets/digit_8.bmp");
-    g_gameData.digits[9] = LoadBMP("assets/digit_9.bmp");
+    g_gameData.digits[0] = LoadBMP("assets/graphics/digits/digit_0.bmp");
+    g_gameData.digits[1] = LoadBMP("assets/graphics/digits/digit_1.bmp");
+    g_gameData.digits[2] = LoadBMP("assets/graphics/digits/digit_2.bmp");
+    g_gameData.digits[3] = LoadBMP("assets/graphics/digits/digit_3.bmp");
+    g_gameData.digits[4] = LoadBMP("assets/graphics/digits/digit_4.bmp");
+    g_gameData.digits[5] = LoadBMP("assets/graphics/digits/digit_5.bmp");
+    g_gameData.digits[6] = LoadBMP("assets/graphics/digits/digit_6.bmp");
+    g_gameData.digits[7] = LoadBMP("assets/graphics/digits/digit_7.bmp");
+    g_gameData.digits[8] = LoadBMP("assets/graphics/digits/digit_8.bmp");
+    g_gameData.digits[9] = LoadBMP("assets/graphics/digits/digit_9.bmp");
 
-    g_gameData.testWAVData1 = LoadWAV("assets/wav_test3.wav");
-    g_gameData.testWAVData2 = LoadWAV("assets/explosion.wav");
+    g_gameData.backgroundMusic = LoadWAV("assets/audio/Tetris3.wav");
 
-    PlaySound(&g_gameData.testWAVData1, true, 0.5f, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
+    // Look these over
+    g_gameData.sfxMove      = LoadWAV("assets/audio/sfx1.wav");
+    g_gameData.sfxRotate    = LoadWAV("assets/audio/sfx4.wav");
+    g_gameData.sfxLock      = LoadWAV("assets/audio/sfx3.wav");
+    g_gameData.sfxLineClear = LoadWAV("assets/audio/sfx5.wav"); 
+    g_gameData.sfxHold      = LoadWAV("assets/audio/sfx2.wav");
+    g_gameData.sfxLevelUp   = LoadWAV("assets/audio/sfx6.wav");
+    g_gameData.sfxSoftDrop  = LoadWAV("assets/audio/sfx1.wav");
+
+    g_gameState.audioVolume = 1.0f;
+
+    PlaySound(&g_gameData.backgroundMusic, true, BACKGROUND_MUSIC, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
 
     RandomInit();
 
@@ -363,8 +391,14 @@ static void CloseScene1(void) {
     EngineFree(g_gameData.digits[8].memory);
     EngineFree(g_gameData.digits[9].memory);
 
-    EngineFree(g_gameData.testWAVData1.samples);
-    EngineFree(g_gameData.testWAVData2.samples);
+    EngineFree(g_gameData.backgroundMusic.samples);
+    EngineFree(g_gameData.sfxMove.samples);
+    EngineFree(g_gameData.sfxRotate.samples);
+    EngineFree(g_gameData.sfxLock.samples);
+    EngineFree(g_gameData.sfxLineClear.samples);
+    EngineFree(g_gameData.sfxHold.samples);
+    EngineFree(g_gameData.sfxLevelUp.samples);
+    EngineFree(g_gameData.sfxSoftDrop.samples);
 
     EngineFree(g_gameState.board.tiles);
 
@@ -383,6 +417,9 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
             if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
                 --g_gameState.current.x;
             }
+            else {
+                PlaySound(&g_gameData.sfxMove, false, SFX_MOVE, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
+            }
         }
     }
     else if (keyboardState->left.isDown) {
@@ -395,6 +432,9 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
             --g_gameState.current.x;
             if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
                 ++g_gameState.current.x;
+            }
+            else {
+                PlaySound(&g_gameData.sfxMove, false, SFX_MOVE, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
             }
         }
     }
@@ -424,7 +464,7 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
         }
 
         if (didRotate) {
-            //g_gameState.timerLockDelay = 0.0f;
+            PlaySound(&g_gameData.sfxRotate, false, SFX_ROTATE, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
         }
     }
 
@@ -442,6 +482,15 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
             g_gameState.current = InitTetromino(g_gameState.hold.type, 0, BOARD_WIDTH / 2 - 2, BOARD_HEIGHT - 4, &g_gameData.tetrominoes);
         }
         g_gameState.hold.type = currentType;
+
+        PlaySound(&g_gameData.sfxHold, false, SFX_HOLD, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
+    }
+
+    b32 didSoftDrop = false;
+    f32 gravityInSeconds = GetCurrentGravityInSeconds(g_gameState.level);
+    if (keyboardState->down.isDown && gravityInSeconds > SOFT_DROP) {
+        didSoftDrop = true;
+        gravityInSeconds = SOFT_DROP;
     }
 
     b32 didHardDrop = false;
@@ -449,13 +498,10 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
         didHardDrop = true;
         while (IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
             --g_gameState.current.y;
+            g_gameState.score += 2 * g_gameState.level;
         }
         ++g_gameState.current.y;
-    }
-
-    f32 gravityInSeconds = GetCurrentGravityInSeconds(g_gameState.level);
-    if (keyboardState->down.isDown && gravityInSeconds > SOFT_DROP) {
-        gravityInSeconds = SOFT_DROP;
+        g_gameState.score -= 2 * g_gameState.level;
     }
 
     g_gameState.timerFall += deltaTime;
@@ -475,7 +521,7 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
                 g_gameState.lines += lineClearCount;
                 switch (lineClearCount) {
                     case 1: {
-                        g_gameState.score += 40 * g_gameState.level;
+                        g_gameState.score += 40  * g_gameState.level;
                     } break;
                     case 2: {
                         g_gameState.score += 100 * g_gameState.level;
@@ -488,9 +534,30 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
                     } break;
                 }
 
+
                 if (g_gameState.lines >= g_gameState.level * 10) {
                     ++g_gameState.level;
-                    PlaySound(&g_gameData.testWAVData2, false, 1.0f, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
+                    PlaySound(&g_gameData.sfxLevelUp, false, SFX_LEVEL_UP, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
+                }
+                else {
+                    switch (lineClearCount) {
+                        case 1: {
+                            PlaySound(&g_gameData.sfxLineClear, false, SFX_LINE_CLEAR, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
+                        } break;
+                        case 2: {
+                            PlaySound(&g_gameData.sfxLineClear, false, SFX_LINE_CLEAR, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
+                        } break;
+                        case 3: {
+                            PlaySound(&g_gameData.sfxLineClear, false, SFX_LINE_CLEAR, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
+                        } break;
+                        case 4: {
+                            PlaySound(&g_gameData.sfxLineClear, false, SFX_LINE_CLEAR, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
+                        } break;
+
+                        default: {
+                            PlaySound(&g_gameData.sfxLock, false, SFX_LOCK, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
+                        } break;
+                    }
                 }
 
                 g_gameState.current = InitTetromino(g_gameState.next[0].type, 0, BOARD_WIDTH / 2 - 2, BOARD_HEIGHT - 4, &g_gameData.tetrominoes);
@@ -505,12 +572,18 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
                     return;
                 }
 
+                g_gameState.timerAutoMoveDelay = 0.0f;
                 g_gameState.timerLockDelay = 0.0f;
                 g_gameState.didUseHoldBox = false;
             }
         }
         else {
             g_gameState.timerLockDelay = 0.0f;
+
+            if (didSoftDrop) {
+                g_gameState.score += 1 * g_gameState.level;
+                PlaySound(&g_gameData.sfxSoftDrop, false, SFX_SOFT_DROP, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
+            }
         }
     }
 
@@ -569,5 +642,5 @@ void OnStartup(void) {
 
 void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
     (*g_gameState.currentScene)(graphicsBuffer, soundBuffer, keyboardState, deltaTime);
-    ProcessSound(soundBuffer, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
+    ProcessSound(soundBuffer, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT, g_gameState.audioVolume);
 }
