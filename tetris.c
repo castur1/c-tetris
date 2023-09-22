@@ -23,6 +23,13 @@
 #define SFX_LEVEL_UP     1.5f
 #define SFX_SOFT_DROP    0.8f
 
+#define SCORE_SINGLE    40
+#define SCORE_DOUBLE    100
+#define SCORE_TRIPLE    300
+#define SCORE_QUADRUPLE 1200
+#define SCORE_SOFT_DROP 1
+#define SCORE_HARD_DROP 2
+
 
 #define PRESSED(key) (key.isDown && key.didChangeState)
 
@@ -81,8 +88,11 @@ typedef void (*scene_pointer)(bitmap_buffer* graphicsBuffer, sound_buffer* sound
 
 typedef struct game_state {
     scene_pointer currentScene;
+
     audio_channel audioChannels[AUDIO_CHANNEL_COUNT];
     f32 audioVolume;
+
+    i32 highScore;
 
     // Scene 1 //
 
@@ -129,6 +139,10 @@ typedef struct game_data {
     // Scene 2 //
 
 } game_data;
+
+typedef struct save_data {
+    i32 highScore;
+} save_data;
 
 
 static game_state g_gameState;
@@ -298,6 +312,25 @@ static f32 GetCurrentGravityInSeconds(i32 level) {
     return gravityInSeconds;
 }
 
+static save_data ReadSaveData(const char* filePath) {
+    i32 bytesRead = 0;
+    void* contents = EngineReadEntireFile(filePath, &bytesRead);
+
+    save_data data;
+    if (bytesRead != sizeof(save_data)) {
+        data = (save_data){ .highScore = 0 };
+        EngineWriteEntireFile(filePath, &data, sizeof(save_data));
+    }
+    else {
+        data = *(save_data*)contents;
+    }
+    
+    EngineFree(contents);
+
+    return data;
+    
+}
+
 
 static void InitScene1(void) {
     g_gameData.tetrominoes[1] = LoadBMP("assets/graphics/tetrominoes/tetromino_cyan.bmp");
@@ -316,8 +349,9 @@ static void InitScene1(void) {
     g_gameData.tetrominoesUI[6] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_J_UI.bmp");
     g_gameData.tetrominoesUI[7] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_L_UI.bmp");
 
-    g_gameData.background = LoadBMP("assets/graphics/background2.bmp");
+    g_gameData.background = LoadBMP("assets/graphics/background3.bmp");
 
+    // Change font?
     g_gameData.digits[0] = LoadBMP("assets/graphics/digits/digit_0.bmp");
     g_gameData.digits[1] = LoadBMP("assets/graphics/digits/digit_1.bmp");
     g_gameData.digits[2] = LoadBMP("assets/graphics/digits/digit_2.bmp");
@@ -359,6 +393,9 @@ static void InitScene1(void) {
     g_gameState.score = 0;
     g_gameState.level = 1;
     g_gameState.lines = 0;
+
+    save_data data = ReadSaveData("data/data.txt");
+    g_gameState.highScore = data.highScore;
 }
 
 static void CloseScene1(void) {
@@ -498,10 +535,10 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
         didHardDrop = true;
         while (IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
             --g_gameState.current.y;
-            g_gameState.score += 2 * g_gameState.level;
+            g_gameState.score += SCORE_HARD_DROP * g_gameState.level;
         }
         ++g_gameState.current.y;
-        g_gameState.score -= 2 * g_gameState.level;
+        g_gameState.score -= SCORE_HARD_DROP * g_gameState.level;
     }
 
     g_gameState.timerFall += deltaTime;
@@ -521,16 +558,16 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
                 g_gameState.lines += lineClearCount;
                 switch (lineClearCount) {
                     case 1: {
-                        g_gameState.score += 40  * g_gameState.level;
+                        g_gameState.score += SCORE_SINGLE * g_gameState.level;
                     } break;
                     case 2: {
-                        g_gameState.score += 100 * g_gameState.level;
+                        g_gameState.score += SCORE_DOUBLE * g_gameState.level;
                     } break;
                     case 3: {
-                        g_gameState.score += 300 * g_gameState.level;
+                        g_gameState.score += SCORE_TRIPLE * g_gameState.level;
                     } break;
                     case 4: {
-                        g_gameState.score += 1200 * g_gameState.level;
+                        g_gameState.score += SCORE_QUADRUPLE * g_gameState.level;
                     } break;
                 }
 
@@ -566,6 +603,14 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
                 g_gameState.next[2].type = GetNextTetrominoFromBag(g_gameState.bag, &g_gameState.bagIndex);
 
                 if (!IsTetrominoPosValid(&g_gameState.board, &g_gameState.current)) {
+                    if (g_gameState.score > g_gameState.highScore) {
+                        g_gameState.highScore = g_gameState.score;
+
+                        save_data data = ReadSaveData("data/data.txt");
+                        data.highScore = g_gameState.highScore;
+                        EngineWriteEntireFile("data/data.txt", &data, sizeof(save_data));
+                    }
+
                     g_gameState.currentScene = &Scene2;
                     CloseScene1();
                     InitScene2();
@@ -581,7 +626,7 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
             g_gameState.timerLockDelay = 0.0f;
 
             if (didSoftDrop) {
-                g_gameState.score += 1 * g_gameState.level;
+                g_gameState.score += SCORE_SOFT_DROP * g_gameState.level;
                 PlaySound(&g_gameData.sfxSoftDrop, false, SFX_SOFT_DROP, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
             }
         }
@@ -610,6 +655,8 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     DrawNumber(graphicsBuffer, g_gameState.level, 578, 328, 15, 2, true, g_gameData.digits);
     DrawNumber(graphicsBuffer, g_gameState.score, 578, 238, 15, 2, true, g_gameData.digits);
     DrawNumber(graphicsBuffer, g_gameState.lines, 578, 148, 15, 2, true, g_gameData.digits);
+
+    DrawNumber(graphicsBuffer, g_gameState.highScore, 578, 463, 15, 2, true, g_gameData.digits);
 
     extern u32 DEBUG_microsecondsElapsed;
     DrawNumber(graphicsBuffer, DEBUG_microsecondsElapsed, 10, 10, 15, 2, false, g_gameData.digits);
