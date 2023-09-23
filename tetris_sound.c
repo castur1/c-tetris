@@ -105,14 +105,20 @@ void StopSound(i32 index, audio_channel* channels) {
     channels[index].samples = 0;
 }
 
-void StopAllSounds(audio_channel* channels, i32 channelCount) {
-    for (i32 i = 0; i < channelCount; ++i) {
+void StopAllSounds(audio_channel* channels, i32 channelsCount) {
+    for (i32 i = 0; i < channelsCount; ++i) {
         channels[i].samples = 0;
     }
 }
 
 void SetSampleIndex(i32 sampleIndex, i32 index, audio_channel* channels) {
     channels[index].sampleIndex = sampleIndex >= channels[index].samplesCount ? channels[index].samplesCount : sampleIndex < 0 ? 0 : sampleIndex;
+}
+
+void CopyAudioChannels(audio_channel* dest, audio_channel* source, i32 channelsCount) {
+    for (i32 i = 0; i < channelsCount; ++i) {
+        dest[i] = source[i];
+    }
 }
 
 void ProcessSound(sound_buffer* soundBuffer, audio_channel* channels, i32 channelCount, f32 volume) {

@@ -18,6 +18,7 @@ extern i32 PlaySound(sound_buffer* audioBuffer, b32 isLooping, f32 volume, audio
 extern void StopSound(i32 index, audio_channel* channels);
 extern void StopAllSounds(audio_channel* channels, i32 channelCount);
 extern void SetSampleIndex(i32 sampleIndex, i32 index, audio_channel* channels);
+extern void CopyAudioChannels(audio_channel* dest, audio_channel* source, i32 channelsCount);
 extern void ProcessSound(sound_buffer* soundBuffer, audio_channel* channels, i32 channelCount, f32 volume);
 
 #endif

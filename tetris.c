@@ -114,6 +114,10 @@ typedef struct game_state {
 
     // Scene 2 //
 
+    // Scene 3 //
+
+    audio_channel tempAudioChannels[AUDIO_CHANNEL_COUNT];
+
 } game_state;
 
 typedef struct game_data {
@@ -151,10 +155,13 @@ static game_data g_gameData;
 
 static void InitScene1(void);
 static void InitScene2(void);
+static void InitScene3(void);
 static void Scene1(bitmap_buffer*, sound_buffer*, keyboard_state*, f32);
 static void Scene2(bitmap_buffer*, sound_buffer*, keyboard_state*, f32);
+static void Scene3(bitmap_buffer*, sound_buffer*, keyboard_state*, f32);
 static void CloseScene1(void);
 static void CloseScene2(void);
+static void CloseScene3(void);
 
 
 static board_t InitBoard(i32 width, i32 height, i32 x, i32 y, i32 tileSize) {
@@ -331,6 +338,7 @@ static save_data ReadSaveData(const char* filePath) {
     
 }
 
+// SCENE 1 //
 
 static void InitScene1(void) {
     g_gameData.tetrominoes[1] = LoadBMP("assets/graphics/tetrominoes/tetromino_cyan.bmp");
@@ -443,6 +451,12 @@ static void CloseScene1(void) {
 }
 
 static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
+    if (PRESSED(keyboardState->mouseRight)) {
+        g_gameState.currentScene = &Scene3;
+        InitScene3();
+        return;
+    }
+
     if (keyboardState->right.isDown) {
         g_gameState.timerAutoMoveDelay += deltaTime;
         if (g_gameState.timerAutoMoveDelay >= AUTO_MOVE_DELAY) {
@@ -662,6 +676,7 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     DrawNumber(graphicsBuffer, DEBUG_microsecondsElapsed, 10, 10, 15, 2, false, g_gameData.digits);
 }
 
+// SCENE 2 //
 
 static void InitScene2(void) {}
 
@@ -673,10 +688,29 @@ static void Scene2(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     DrawRectangle(graphicsBuffer, 0, 0, graphicsBuffer->width, graphicsBuffer->height, 0xFFFFFF);
     DrawRectangle(graphicsBuffer, keyboardState->mouseX, keyboardState->mouseY, 16, 16, 0x000000);
 
-    if (keyboardState->mouseLeft.isDown) {
+    if (PRESSED(keyboardState->mouseLeft)) {
         g_gameState.currentScene = &Scene1;
         CloseScene2();
         InitScene1();
+        return;
+    }
+}
+
+// SCENE 3 //
+
+static void InitScene3(void) {
+    CopyAudioChannels(g_gameState.tempAudioChannels, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
+    StopAllSounds(g_gameState.audioChannels, AUDIO_CHANNEL_COUNT);
+}
+
+static void CloseScene3(void) {
+    CopyAudioChannels(g_gameState.audioChannels, g_gameState.tempAudioChannels, AUDIO_CHANNEL_COUNT);
+}
+
+static void Scene3(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
+    if (PRESSED(keyboardState->mouseRight)) {
+        CloseScene3();
+        g_gameState.currentScene = &Scene1;
         return;
     }
 }
