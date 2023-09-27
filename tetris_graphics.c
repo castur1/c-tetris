@@ -158,6 +158,9 @@ void DrawBitmap(bitmap_buffer* graphicsBuffer, bitmap_buffer* bitmap, i32 x, i32
             if (sa == 255) {
                 *dest++ = source[(i32)sourceIndex];
             }
+            else if (sa == 0) {
+                ++dest;
+            }
             else {
                 u8 sr = sc >> 16;
                 u8 sg = sc >> 8;

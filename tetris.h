@@ -45,8 +45,11 @@ typedef struct keyboard_state {
             keyboard_key_state z;
             keyboard_key_state x;
             keyboard_key_state c;
+
+            keyboard_key_state esc;
+            keyboard_key_state f;
         };
-        keyboard_key_state keys[7];
+        keyboard_key_state keys[9];
     };
 } keyboard_state;
 

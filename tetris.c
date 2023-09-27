@@ -84,6 +84,22 @@ typedef struct tetromino_t {
     i32 y;
 } tetromino_t;
 
+typedef enum button_state {
+    button_state_idle,
+    button_state_hover,
+    button_state_pressed,
+    button_state_held,
+    button_state_released
+} button_state;
+
+typedef struct button_t {
+    i32 x;
+    i32 y;
+    i32 width;
+    i32 height;
+    button_state state;
+} button_t;
+
 typedef void (*scene_pointer)(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime);
 
 typedef struct game_state {
@@ -111,6 +127,8 @@ typedef struct game_state {
     i32 score;
     i32 level;
     i32 lines;
+
+    button_t buttonPause; // Do we really need to remember the button?
 
     // Scene 2 //
 
@@ -338,16 +356,53 @@ static save_data ReadSaveData(const char* filePath) {
     
 }
 
+static inline b32 IsPointInRect(i32 px, i32 py, i32 rxl, i32 ryl, i32 rxr, i32 ryr) {
+    return px >= rxl && px < rxr && py >= ryl && py < ryr;
+}
+
+// Wtf even is this lol
+static void UpdateButtonState(button_t* button, i32 mouseX, i32 mouseY, keyboard_key_state* mouseButton) {
+    if (IsPointInRect(mouseX, mouseY, button->x, button->y, button->x + button->width, button->y + button->height)) {
+        if (mouseButton->isDown) {
+            if (mouseButton->didChangeState) {
+                button->state = button_state_pressed;
+            }
+            else if (button->state == button_state_held || button->state == button_state_pressed) {
+                button->state = button_state_held;
+            }
+            else {
+                button->state = button_state_hover;
+            }
+        }
+        else {
+            if (button->state == button_state_held || button->state == button_state_pressed) {
+                button->state = button_state_released;
+            }
+            else {
+                button->state = button_state_hover;
+            }
+        }
+    }
+    else {
+        if (button->state == button_state_held || button->state == button_state_pressed) {
+            button->state = button_state_released;
+        }
+        else {
+            button->state = button_state_idle;
+        }
+    }
+}
+
 // SCENE 1 //
 
 static void InitScene1(void) {
-    g_gameData.tetrominoes[1] = LoadBMP("assets/graphics/tetrominoes/tetromino_cyan.bmp");
-    g_gameData.tetrominoes[2] = LoadBMP("assets/graphics/tetrominoes/tetromino_yellow.bmp");
-    g_gameData.tetrominoes[3] = LoadBMP("assets/graphics/tetrominoes/tetromino_purple.bmp");
-    g_gameData.tetrominoes[4] = LoadBMP("assets/graphics/tetrominoes/tetromino_green.bmp");
-    g_gameData.tetrominoes[5] = LoadBMP("assets/graphics/tetrominoes/tetromino_red.bmp");
-    g_gameData.tetrominoes[6] = LoadBMP("assets/graphics/tetrominoes/tetromino_blue.bmp");
-    g_gameData.tetrominoes[7] = LoadBMP("assets/graphics/tetrominoes/tetromino_orange.bmp");
+    g_gameData.tetrominoes[1] = LoadBMP("assets/graphics/tetrominoes/tetromino_i.bmp");
+    g_gameData.tetrominoes[2] = LoadBMP("assets/graphics/tetrominoes/tetromino_o.bmp");
+    g_gameData.tetrominoes[3] = LoadBMP("assets/graphics/tetrominoes/tetromino_t.bmp");
+    g_gameData.tetrominoes[4] = LoadBMP("assets/graphics/tetrominoes/tetromino_s.bmp");
+    g_gameData.tetrominoes[5] = LoadBMP("assets/graphics/tetrominoes/tetromino_z.bmp");
+    g_gameData.tetrominoes[6] = LoadBMP("assets/graphics/tetrominoes/tetromino_j.bmp");
+    g_gameData.tetrominoes[7] = LoadBMP("assets/graphics/tetrominoes/tetromino_l.bmp");
 
     g_gameData.tetrominoesUI[1] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_I_UI.bmp");
     g_gameData.tetrominoesUI[2] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_O_UI.bmp");
@@ -404,6 +459,14 @@ static void InitScene1(void) {
 
     save_data data = ReadSaveData("data/data.txt");
     g_gameState.highScore = data.highScore;
+
+    g_gameState.buttonPause = (button_t){
+        .x      = 1770,
+        .y      = 50,
+        .width  = 100,
+        .height = 100,
+        .state  = button_state_idle
+    };
 }
 
 static void CloseScene1(void) {
@@ -451,7 +514,7 @@ static void CloseScene1(void) {
 }
 
 static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
-    if (PRESSED(keyboardState->mouseRight)) {
+    if (PRESSED(keyboardState->esc)) {
         g_gameState.currentScene = &Scene3;
         InitScene3();
         return;
@@ -672,6 +735,33 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
 
     DrawNumber(graphicsBuffer, g_gameState.highScore, 578, 463, 15, 2, true, g_gameData.digits);
 
+    UpdateButtonState(&g_gameState.buttonPause, keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
+
+    if (g_gameState.buttonPause.state == button_state_pressed) {
+        g_gameState.currentScene = &Scene3;
+        InitScene3();
+    }
+
+    u32 buttonColour = 0;
+    switch (g_gameState.buttonPause.state) {
+        case button_state_idle: {
+            buttonColour = 0xFF0000;
+        } break;
+        case button_state_hover: {
+            buttonColour = 0x00FF00;
+        } break;
+        case button_state_pressed: {
+            buttonColour = 0x000000;
+        } break;
+        case button_state_held: {
+            buttonColour = 0x0000FF;
+        } break;
+        case button_state_released: {
+            buttonColour = 0xFFFFFF;
+        } break;
+    }
+    DrawRectangle(graphicsBuffer, g_gameState.buttonPause.x, g_gameState.buttonPause.y, g_gameState.buttonPause.width, g_gameState.buttonPause.height, buttonColour);
+
     extern u32 DEBUG_microsecondsElapsed;
     DrawNumber(graphicsBuffer, DEBUG_microsecondsElapsed, 10, 10, 15, 2, false, g_gameData.digits);
 }
@@ -708,7 +798,31 @@ static void CloseScene3(void) {
 }
 
 static void Scene3(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
-    if (PRESSED(keyboardState->mouseRight)) {
+    UpdateButtonState(&g_gameState.buttonPause, keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
+
+    u32 buttonColour = 0;
+    switch (g_gameState.buttonPause.state) {
+        case button_state_idle: {
+            buttonColour = 0xFF0000;
+        } break;
+        case button_state_hover: {
+            buttonColour = 0x00FF00;
+        } break;
+        case button_state_pressed: {
+            buttonColour = 0x000000;
+        } break;
+        case button_state_held: {
+            buttonColour = 0x0000FF;
+        } break;
+        case button_state_released: {
+            buttonColour = 0xFFFFFF;
+        } break;
+    }
+    DrawRectangle(graphicsBuffer, g_gameState.buttonPause.x, g_gameState.buttonPause.y, g_gameState.buttonPause.width, g_gameState.buttonPause.height, buttonColour);
+
+    DrawRectangle(graphicsBuffer, keyboardState->mouseX, keyboardState->mouseY, 16, 16, 0xFFFFFF);
+
+    if (PRESSED(keyboardState->esc) || g_gameState.buttonPause.state == button_state_pressed) {
         CloseScene3();
         g_gameState.currentScene = &Scene1;
         return;
@@ -722,6 +836,10 @@ void OnStartup(void) {
 }
 
 void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
+    if (PRESSED(keyboardState->f)) {
+        EngineToggleFullscreen();
+    }
+
     (*g_gameState.currentScene)(graphicsBuffer, soundBuffer, keyboardState, deltaTime);
     ProcessSound(soundBuffer, g_gameState.audioChannels, AUDIO_CHANNEL_COUNT, g_gameState.audioVolume);
 }

@@ -25,10 +25,12 @@ typedef struct sytem_time {
 } system_time;
 
 
-extern system_time EngineGetSystemTime(void);
 extern void* EngineReadEntireFile(char* fileName, i32* bytesRead);
 extern b32 EngineWriteEntireFile(const char* fileName, const void* buffer, i32 bufferSize);
 extern void* EngineAllocate(i32 size);
 extern void EngineFree(void* memory);
+extern system_time EngineGetSystemTime(void);
+extern void EngineClose(void);
+extern void EngineToggleFullscreen(void);
 
 #endif

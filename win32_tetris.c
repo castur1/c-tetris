@@ -28,6 +28,7 @@ typedef struct win32_ivec2 {
 
 static b32 g_isRunning;
 static win32_bitmap g_bitmapBuffer;
+static HWND g_window;
 
 
 // Credit: Raymond Chen
@@ -48,12 +49,6 @@ static void ToggleFullscreen(HWND window) {
         SetWindowPlacement(window, &g_windowPosition);
         SetWindowPos(window, 0, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
     }
-}
-
-system_time EngineGetSystemTime(void) {
-    SYSTEMTIME time;
-    GetSystemTime(&time);
-    return *(system_time*)&time;
 }
 
 void* EngineReadEntireFile(const char* filePath, i32* bytesRead) {
@@ -390,14 +385,6 @@ ProcessPendingMessages(HWND window, win32_bitmap* bitmapBuffer, keyboard_state* 
 
                 if (wasDown != isDown) {
                     switch (message.wParam) {
-                        case VK_ESCAPE: {
-                            g_isRunning = false;
-                        } break;
-                        case 'F': { // Should this really be here? Perhaps platform independence instead?
-                            if (isDown) {
-                                ToggleFullscreen(window);
-                            }
-                        } break;
                         case VK_UP: {
                             UpdateKeyboardKey(&keyboardState->up, isDown);
                         } break;
@@ -418,6 +405,12 @@ ProcessPendingMessages(HWND window, win32_bitmap* bitmapBuffer, keyboard_state* 
                         } break;
                         case 'C': {
                             UpdateKeyboardKey(&keyboardState->c, isDown);
+                        } break;
+                        case VK_ESCAPE: {
+                            UpdateKeyboardKey(&keyboardState->esc, isDown);
+                        } break;
+                        case 'F': {
+                            UpdateKeyboardKey(&keyboardState->f, isDown);
                         } break;
                     }
                 }
@@ -513,14 +506,14 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
         return 1;
     }
 
-    HWND window = CreateWindowEx(0, windowClass.lpszClassName, L"Tetris", WS_OVERLAPPEDWINDOW | WS_VISIBLE, \
+    g_window = CreateWindowEx(0, windowClass.lpszClassName, L"Tetris", WS_OVERLAPPEDWINDOW | WS_VISIBLE, \
         CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, instance, NULL);
-    if (!window) {
+    if (!g_window) {
         return 1;
     }
 
     LPDIRECTSOUNDBUFFER secondarySoundBuffer;
-    if (!InitDirectSound(window, &secondarySoundBuffer)) {
+    if (!InitDirectSound(g_window, &secondarySoundBuffer)) {
         return 1;
     }
     secondarySoundBuffer->lpVtbl->Play(secondarySoundBuffer, 0, 0, DSBPLAY_LOOPING);
@@ -531,7 +524,7 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
     b32  soundIsValid = false;
     i32  soundBytesPerFrame;
 
-    HDC deviceContext = GetDC(window);
+    HDC deviceContext = GetDC(g_window);
 
     timeBeginPeriod(1);
 
@@ -559,9 +552,9 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
     while (g_isRunning) {
         LARGE_INTEGER performanceCountAtStartOfFrame = GetCurrentPerformanceCount();
 
-        ProcessPendingMessages(window, &g_bitmapBuffer, &keyboardState);
+        ProcessPendingMessages(g_window, &g_bitmapBuffer, &keyboardState);
 
-        GetCursorPosition(window, &g_bitmapBuffer, &keyboardState.mouseX, &keyboardState.mouseY);
+        GetCursorPosition(g_window, &g_bitmapBuffer, &keyboardState.mouseX, &keyboardState.mouseY);
 
         DWORD byteToLock = 0;
         DWORD bytesToWrite = 0;
@@ -608,7 +601,7 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
             FillSoundBuffer(&secondarySoundBuffer, &soundBuffer, byteToLock, bytesToWrite);
         }
 
-        win32_ivec2 windowDimensions = GetWindowDimensions(window);
+        win32_ivec2 windowDimensions = GetWindowDimensions(g_window);
         DisplayBitmapInWindow(&g_bitmapBuffer, deviceContext, windowDimensions.x, windowDimensions.y);
 
         LARGE_INTEGER performanceCountAtEndOfFrame = GetCurrentPerformanceCount();
@@ -642,4 +635,19 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
     timeEndPeriod(1);
 
     return 0;
+}
+
+
+system_time EngineGetSystemTime(void) {
+    SYSTEMTIME time;
+    GetSystemTime(&time);
+    return *(system_time*)&time;
+}
+
+void EngineClose(void) {
+    g_isRunning = false;
+}
+
+void EngineToggleFullscreen(void) {
+    ToggleFullscreen(g_window);
 }
