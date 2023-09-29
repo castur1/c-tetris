@@ -100,6 +100,15 @@ typedef struct button_t {
     button_state state;
 } button_t;
 
+typedef struct font_t {
+    bitmap_buffer spriteSheet;
+    i32 sheetWidth;
+    i32 sheetHeight;
+    char* characters;
+    i32 charactersCount;
+    // Individual offsets etc.
+} font_t;
+
 typedef void (*scene_pointer)(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime);
 
 typedef struct game_state {
@@ -147,6 +156,7 @@ typedef struct game_data {
     bitmap_buffer background;
 
     bitmap_buffer digits[10];
+    font_t font;
 
     sound_buffer backgroundMusic;
     sound_buffer sfxMove;
@@ -426,6 +436,14 @@ static void InitScene1(void) {
     g_gameData.digits[8] = LoadBMP("assets/graphics/digits/digit_8.bmp");
     g_gameData.digits[9] = LoadBMP("assets/graphics/digits/digit_9.bmp");
 
+    g_gameData.font = (font_t){
+        .spriteSheet = LoadBMP("assets/letters_sprite_sheet.bmp"),
+        .sheetWidth = 13,
+        .sheetHeight = 5,
+        .characters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.-",
+        .charactersCount = 65
+    };
+
     g_gameData.backgroundMusic = LoadWAV("assets/audio/Tetris3.wav");
 
     // Look these over
@@ -498,6 +516,8 @@ static void CloseScene1(void) {
     EngineFree(g_gameData.digits[7].memory);
     EngineFree(g_gameData.digits[8].memory);
     EngineFree(g_gameData.digits[9].memory);
+
+    EngineFree(g_gameData.font.spriteSheet.memory);
 
     EngineFree(g_gameData.backgroundMusic.samples);
     EngineFree(g_gameData.sfxMove.samples);
@@ -723,6 +743,8 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
 
     DrawTetrominoInBoard(graphicsBuffer, &g_gameState.board, &ghost, &g_gameData.tetrominoes[ghost.type], 64); // <-- Feedback :)
 
+    // All these could really be replaced by DrawBitmapStupidButWithOpacity if you think about it.
+    // Should save some processing time ig
     DrawBitmap(graphicsBuffer, &g_gameData.tetrominoesUI[g_gameState.next[0].type], g_gameState.next[0].x, g_gameState.next[0].y, 90, 255);
     DrawBitmap(graphicsBuffer, &g_gameData.tetrominoesUI[g_gameState.next[1].type], g_gameState.next[1].x, g_gameState.next[1].y, 90, 255);
     DrawBitmap(graphicsBuffer, &g_gameData.tetrominoesUI[g_gameState.next[2].type], g_gameState.next[2].x, g_gameState.next[2].y, 90, 255);
@@ -761,6 +783,29 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
         } break;
     }
     DrawRectangle(graphicsBuffer, g_gameState.buttonPause.x, g_gameState.buttonPause.y, g_gameState.buttonPause.width, g_gameState.buttonPause.height, buttonColour);
+
+    const char* testString = "Hello, world";
+    i32 testStringLength = 22;
+    i32 characterWidth = g_gameData.font.spriteSheet.width / g_gameData.font.sheetWidth;
+    i32 characterHeight = g_gameData.font.spriteSheet.height / g_gameData.font.sheetHeight;
+    i32 strX = 10;
+    i32 strY = 50;
+    for (i32 i = 0; i < testStringLength; ++i) {
+        i32 index = 0;
+        while (testString[i] != g_gameData.font.characters[index] && index < g_gameData.font.charactersCount) {
+            ++index;
+        } 
+        if (index >= g_gameData.font.charactersCount) {
+            strX += characterWidth;
+            continue;
+        }
+
+        i32 sourceX = (index % g_gameData.font.sheetWidth) * characterWidth;
+        i32 sourceY = (g_gameData.font.sheetHeight - index / g_gameData.font.sheetWidth - 1) * characterHeight;
+
+        DrawPartialBitmap(graphicsBuffer, &g_gameData.font.spriteSheet, strX, strY, sourceX, sourceY, characterWidth, characterHeight, 255);
+        strX += characterWidth;
+    }
 
     extern u32 DEBUG_microsecondsElapsed;
     DrawNumber(graphicsBuffer, DEBUG_microsecondsElapsed, 10, 10, 15, 2, false, g_gameData.digits);

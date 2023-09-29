@@ -10,19 +10,19 @@ static i32 GetLeastSignificantSetBitIndex(u32 bits) {
     return -1;
 }
 
-void DrawRectangle(bitmap_buffer* graphicsBuffer, i32 x, i32 y, i32 width, i32 height, u32 colour) {
+void DrawRectangle(bitmap_buffer* bitmapDest, i32 x, i32 y, i32 width, i32 height, u32 colour) {
     i32 xMin = Max(x, 0);
     i32 yMin = Max(y, 0);
-    i32 xMax = Min(x + width, graphicsBuffer->width);
-    i32 yMax = Min(y + height, graphicsBuffer->height);
+    i32 xMax = Min(x + width, bitmapDest->width);
+    i32 yMax = Min(y + height, bitmapDest->height);
 
-    u8* row = (u8*)graphicsBuffer->memory + y * graphicsBuffer->pitch + x * graphicsBuffer->bytesPerPixel;
+    u8* row = (u8*)bitmapDest->memory + y * bitmapDest->pitch + x * bitmapDest->bytesPerPixel;
     for (i32 y = yMin; y < yMax; ++y) {
         u32* pixel = row;
         for (i32 x = xMin; x < xMax; ++x) {
             *pixel++ = colour;
         }
-        row += graphicsBuffer->pitch;
+        row += bitmapDest->pitch;
     }
 }
 
@@ -126,42 +126,38 @@ bitmap_buffer LoadBMP(const char* filePath) {
     return bitmap;
 }
 
-void DrawBitmap(bitmap_buffer* graphicsBuffer, bitmap_buffer* bitmap, i32 x, i32 y, i32 width, i32 opacity) {
-    f32 aspectRatio = bitmap->width / (f32)bitmap->height;
-    f32 ratio = bitmap->width / (f32)width;
+void DrawBitmap(bitmap_buffer* bitmapDest, bitmap_buffer* bitmapSource, i32 x, i32 y, i32 width, u8 opacity) {
+    f32 aspectRatio = bitmapSource->width / (f32)bitmapSource->height;
+    f32 ratio = bitmapSource->width / (f32)width;
 
     i32 height = width / aspectRatio;
 
     i32 xMin = Max(x, 0);
     i32 yMin = Max(y, 0);
-    i32 xMax = Min(x + width, graphicsBuffer->width);
-    i32 yMax = Min(y + height, graphicsBuffer->height);
+    i32 xMax = Min(x + width, bitmapDest->width);
+    i32 yMax = Min(y + height, bitmapDest->height);
 
     i32 xOffset = x < 0 ? -x : 0;
     i32 yOffset = y < 0 ? -y : 0;
 
-    // This is unneccesary, right? See BitBlt code in win32_tetris.c
     i32 sourceXOffset = xOffset * ratio;
     i32 sourceYOffset = yOffset * ratio;
 
-    u8* rowDest = (u8*)graphicsBuffer->memory + yMin * graphicsBuffer->pitch + xMin * graphicsBuffer->bytesPerPixel;
-    u32* source = bitmap->memory;
+    u32* rowDest = (u32*)bitmapDest->memory + yMin * bitmapDest->width + xMin;
+    u32* source = bitmapSource->memory;
     f64 sourceY = sourceYOffset;
     for (i32 y = yMin; y < yMax; ++y) {
         u32* dest = rowDest;
-        f64 sourceIndex = sourceXOffset + (i32)sourceY * bitmap->width;
+        f64 sourceIndex = sourceXOffset + (i32)sourceY * bitmapSource->width;
         for (i32 x = xMin; x < xMax; ++x) {
             u32 sc = source[(i32)sourceIndex];
             u8 sa = sc >> 24;
             sa = Min(sa, opacity);
 
             if (sa == 255) {
-                *dest++ = source[(i32)sourceIndex];
+                *dest = sc;
             }
-            else if (sa == 0) {
-                ++dest;
-            }
-            else {
+            else if (sa) {
                 u8 sr = sc >> 16;
                 u8 sg = sc >> 8;
                 u8 sb = sc;
@@ -175,29 +171,74 @@ void DrawBitmap(bitmap_buffer* graphicsBuffer, bitmap_buffer* bitmap, i32 x, i32
                 u32 g = dg + t * (i32)(sg - dg);
                 u32 b = db + t * (i32)(sb - db);
 
-                *dest++ = RGBToU32(r, g, b);
+                *dest = RGBToU32(r, g, b);
             }
 
+            ++dest;
             sourceIndex += ratio;
         }
-        rowDest += graphicsBuffer->pitch;
+        rowDest += bitmapDest->width;
         sourceY += ratio;
     }
 }
 
-void DrawBitmapStupid(bitmap_buffer* graphicsBuffer, bitmap_buffer* bitmap, i32 x, i32 y) {
-    u8* rowDest = (u8*)graphicsBuffer->memory + y * graphicsBuffer->pitch + x * graphicsBuffer->bytesPerPixel;
-    u32* source = bitmap->memory;
-    for (i32 y = 0; y < bitmap->height; ++y) {
-        u32* pixel = rowDest;
-        for (i32 x = 0; x < bitmap->width; ++x) {
-            *pixel++ = *source++;
+void DrawPartialBitmap(bitmap_buffer* bitmapDest, bitmap_buffer* bitmapSource, i32 destX, i32 destY, i32 sourceX, i32 sourceY, i32 width, i32 height, u8 opacity) {
+    width = Min(width, bitmapSource->width - sourceX);
+    width = Min(width, bitmapDest->width - destX);
+    height = Min(height, bitmapSource->height - sourceY);
+    height = Min(height, bitmapDest->height - destY);
+
+    u32* destRow = (u32*)bitmapDest->memory + destY * bitmapDest->width + destX;
+    u32* sourceRow = (u32*)bitmapSource->memory + sourceY * bitmapSource->width + sourceX;
+    for (i32 y = 0; y < height; ++y) {
+        u32* dest = destRow;
+        u32* source = sourceRow;
+        for (i32 x = 0; x < width; ++x) {
+            u32 sc = *source;
+            u8 sa = sc >> 24;
+            sa = Min(sa, opacity);
+
+            if (sa == 255) {
+                *dest = sc;
+            }
+            else if (sa) {
+                u8 sr = sc >> 16;
+                u8 sg = sc >> 8;
+                u8 sb = sc;
+
+                u8 dr = *dest >> 16;
+                u8 dg = *dest >> 8;
+                u8 db = *dest;
+
+                f32 t = sa / 255.0f;
+                u32 r = dr + t * (i32)(sr - dr);
+                u32 g = dg + t * (i32)(sg - dg);
+                u32 b = db + t * (i32)(sb - db);
+
+                *dest = RGBToU32(r, g, b);
+            }
+
+            ++dest;
+            ++source;
         }
-        rowDest += graphicsBuffer->pitch;
+        destRow += bitmapDest->width;
+        sourceRow += bitmapSource->width;
     }
 }
 
-void DrawNumber(bitmap_buffer* graphicsBuffer, u32 number, i32 x, i32 y, i32 digitWidth, i32 spacing, b32 isCentreAligned, bitmap_buffer* digits) {
+void DrawBitmapStupid(bitmap_buffer* bitmapDest, bitmap_buffer* bitmapSource, i32 x, i32 y) {
+    u32* rowDest = (u32*)bitmapDest->memory + y * bitmapDest->width + x;
+    u32* source = bitmapSource->memory;
+    for (i32 y = 0; y < bitmapSource->height; ++y) {
+        u32* pixel = rowDest;
+        for (i32 x = 0; x < bitmapSource->width; ++x) {
+            *pixel++ = *source++;
+        }
+        rowDest += bitmapDest->width;
+    }
+}
+
+void DrawNumber(bitmap_buffer* bitmapDest, u32 number, i32 x, i32 y, i32 digitWidth, i32 spacing, b32 isCentreAligned, bitmap_buffer* digits) {
     i32 digitCount = 1;
     u32 denom = 1;
     u32 numberCopy = number;
@@ -211,7 +252,7 @@ void DrawNumber(bitmap_buffer* graphicsBuffer, u32 number, i32 x, i32 y, i32 dig
     }
 
     for (i32 i = 0; i < digitCount; ++i) {
-        DrawBitmap(graphicsBuffer, &digits[number / denom], x + i * (digitWidth + spacing), y, digitWidth, 255);
+        DrawBitmap(bitmapDest, &digits[number / denom], x + i * (digitWidth + spacing), y, digitWidth, 255);
         number %= denom;
         denom /= 10;
     }

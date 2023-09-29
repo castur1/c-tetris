@@ -11,7 +11,7 @@ typedef struct bitmap_buffer {
     void* memory;
     i32 width;
     i32 height;
-    i32 pitch;
+    i32 pitch; // Is this one even neccessary?
     i32 bytesPerPixel;
 } bitmap_buffer;
 
