@@ -238,22 +238,149 @@ void DrawBitmapStupid(bitmap_buffer* bitmapDest, bitmap_buffer* bitmapSource, i3
     }
 }
 
-void DrawNumber(bitmap_buffer* bitmapDest, u32 number, i32 x, i32 y, i32 digitWidth, i32 spacing, b32 isCentreAligned, bitmap_buffer* digits) {
+void DrawNumber(bitmap_buffer* bitmapDest, font_t* font, i32 number, i32 x, i32 y, i32 spacing, b32 isCentred) {
     i32 digitCount = 1;
-    u32 denom = 1;
-    u32 numberCopy = number;
-    while (numberCopy /= 10) {
-        ++digitCount;
+    i32 denom = 10;
+    while (number / denom) {
         denom *= 10;
+        ++digitCount;
     }
+    denom /= 10;
 
-    if (isCentreAligned) {
-        x -= digitCount * (digitWidth + spacing) / 2;
+    if (isCentred) {
+        i32 denom2 = denom;
+        i32 number2 = number;
+
+        i32 widthInPixels = 0;
+        for (i32 i = 0; i < digitCount; ++i) {
+            i32 digit = number2 / denom2;
+            number2 %= denom2;
+            denom2 /= 10;
+
+            i32 index = 0;
+            while (font->characters[index] != (digit + '0') && index < font->charactersCount) {
+                ++index;
+            }
+
+            widthInPixels += font->widths[index] + spacing;
+        }
+
+        x -= widthInPixels / 2;
     }
 
     for (i32 i = 0; i < digitCount; ++i) {
-        DrawBitmap(bitmapDest, &digits[number / denom], x + i * (digitWidth + spacing), y, digitWidth, 255);
+        i32 digit = number / denom;
         number %= denom;
         denom /= 10;
+
+        i32 index = 0;
+        while (font->characters[index] != (digit + '0') && index < font->charactersCount) {
+            ++index;
+        }
+
+        if (index < font->charactersCount) {
+            i32 sourceX = (index % font->sheetWidth) * font->spriteWidth + font->offsets[index];
+            i32 sourceY = (font->sheetHeight - index / font->sheetWidth - 1) * font->spriteHeight;
+
+            DrawPartialBitmap(bitmapDest, &font->spriteSheet, x, y, sourceX, sourceY, font->widths[index], font->spriteHeight, 255);
+        }
+
+        x += font->widths[index] + spacing;
+    }
+}
+
+font_t InitFont(const char* filePath, i32 sheetWidth, i32 sheetHeight, const char* characters) {
+    font_t result = { 0 };
+
+    result.spriteSheet = LoadBMP(filePath);
+    result.sheetWidth = sheetWidth;
+    result.sheetHeight = sheetHeight;
+    result.spriteWidth = result.spriteSheet.width / result.sheetWidth;
+    result.spriteHeight = result.spriteSheet.height / result.sheetHeight;
+
+    result.characters = characters;
+    for (result.charactersCount = 0; characters[result.charactersCount] != '\0'; ++result.charactersCount);
+
+    result.widths  = EngineAllocate((result.charactersCount + 1) * sizeof(i32));
+    result.offsets = EngineAllocate((result.charactersCount + 1) * sizeof(i32));
+
+    for (i32 i = 0; i < result.charactersCount; ++i) {
+        result.offsets[i] = result.spriteWidth;
+
+        i32 sourceX = (i % result.sheetWidth) * result.spriteWidth;
+        i32 sourceY = (result.sheetHeight - i / result.sheetWidth - 1) * result.spriteHeight;
+
+        for (i32 y = 0; y < result.spriteHeight; ++y) {
+            i32 x1 = 0;
+            for (; x1 < result.spriteWidth; ++x1) {
+                i32 px = sourceX + x1;
+                i32 py = sourceY + y;
+
+                u32 colour = ((u32*)result.spriteSheet.memory)[py * result.spriteSheet.width + px];
+                u8 alpha = colour >> 24;
+                if (alpha > 64) {
+                    break;
+                }
+            }
+            if (x1 < result.offsets[i]) {
+                result.offsets[i] = x1;
+            }
+
+            i32 x2 = result.spriteWidth - 1;
+            for (; x2 >= 0; --x2) {
+                i32 px = sourceX + x2;
+                i32 py = sourceY + y;
+
+                u32 colour = ((u32*)result.spriteSheet.memory)[py * result.spriteSheet.width + px];
+                u8 alpha = colour >> 24;
+                if (alpha > 64) {
+                    break;
+                }
+            }
+            if (x2 >= result.widths[i]) {
+                result.widths[i] = x2;
+            }
+        }
+
+        result.widths[i] -= result.offsets[i] - 1;
+    }
+    result.widths[result.charactersCount] = result.spriteWidth / 2;
+    result.offsets[result.charactersCount] = 0;
+
+    return result;
+}
+
+void DrawText(bitmap_buffer* bitmapDest, font_t* font, const char* text, i32 x, i32 y, i32 spacing, b32 isCentred) {
+    i32 textLength = 0;
+    for (; text[textLength] != '\0'; ++textLength);
+
+    if (isCentred) {
+        i32 textWidth = 0;
+        for (i32 i = 0; i < textLength; ++i) {
+            i32 index = 0;
+            while (font->characters[index] != text[i] && index < font->charactersCount) {
+                ++index;
+            }
+
+            textWidth += font->widths[index] + spacing;
+        }
+
+        x -= textWidth / 2;
+    }
+    
+    for (i32 i = 0; i < textLength; ++i) {
+        i32 index = 0;
+        while (font->characters[index] != text[i] && index < font->charactersCount) {
+            ++index;
+        }
+
+        if (index < font->charactersCount) {
+            i32 sourceX = (index % font->sheetWidth) * font->spriteWidth + font->offsets[index];
+            i32 sourceY = (font->sheetHeight - index / font->sheetWidth - 1) * font->spriteHeight;
+
+            DrawPartialBitmap(bitmapDest, &font->spriteSheet, x, y, sourceX, sourceY, font->widths[index], font->spriteHeight, 255);
+        }
+
+        x += font->widths[index] + spacing;
     }
 }

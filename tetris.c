@@ -100,15 +100,6 @@ typedef struct button_t {
     button_state state;
 } button_t;
 
-typedef struct font_t {
-    bitmap_buffer spriteSheet;
-    i32 sheetWidth;
-    i32 sheetHeight;
-    char* characters;
-    i32 charactersCount;
-    // Individual offsets etc.
-} font_t;
-
 typedef void (*scene_pointer)(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime);
 
 typedef struct game_state {
@@ -148,15 +139,15 @@ typedef struct game_state {
 } game_state;
 
 typedef struct game_data {
+    bitmap_buffer digits[10];
+    font_t font;
+
     // Scene 1 //
 
     bitmap_buffer tetrominoes[8];
     bitmap_buffer tetrominoesUI[8];
 
     bitmap_buffer background;
-
-    bitmap_buffer digits[10];
-    font_t font;
 
     sound_buffer backgroundMusic;
     sound_buffer sfxMove;
@@ -166,7 +157,6 @@ typedef struct game_data {
     sound_buffer sfxHold;
     sound_buffer sfxLevelUp;
     sound_buffer sfxSoftDrop;
-    // Etc.?
 
     // Scene 2 //
 
@@ -424,26 +414,7 @@ static void InitScene1(void) {
 
     g_gameData.background = LoadBMP("assets/graphics/background3.bmp");
 
-    // Change font?
-    g_gameData.digits[0] = LoadBMP("assets/graphics/digits/digit_0.bmp");
-    g_gameData.digits[1] = LoadBMP("assets/graphics/digits/digit_1.bmp");
-    g_gameData.digits[2] = LoadBMP("assets/graphics/digits/digit_2.bmp");
-    g_gameData.digits[3] = LoadBMP("assets/graphics/digits/digit_3.bmp");
-    g_gameData.digits[4] = LoadBMP("assets/graphics/digits/digit_4.bmp");
-    g_gameData.digits[5] = LoadBMP("assets/graphics/digits/digit_5.bmp");
-    g_gameData.digits[6] = LoadBMP("assets/graphics/digits/digit_6.bmp");
-    g_gameData.digits[7] = LoadBMP("assets/graphics/digits/digit_7.bmp");
-    g_gameData.digits[8] = LoadBMP("assets/graphics/digits/digit_8.bmp");
-    g_gameData.digits[9] = LoadBMP("assets/graphics/digits/digit_9.bmp");
-
-    g_gameData.font = (font_t){
-        .spriteSheet = LoadBMP("assets/letters_sprite_sheet.bmp"),
-        .sheetWidth = 13,
-        .sheetHeight = 5,
-        .characters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.-",
-        .charactersCount = 65
-    };
-
+    // Continue working on this (or redo it idk)
     g_gameData.backgroundMusic = LoadWAV("assets/audio/Tetris3.wav");
 
     // Look these over
@@ -505,19 +476,6 @@ static void CloseScene1(void) {
     EngineFree(g_gameData.tetrominoesUI[7].memory);
 
     EngineFree(g_gameData.background.memory);
-
-    EngineFree(g_gameData.digits[0].memory);
-    EngineFree(g_gameData.digits[1].memory);
-    EngineFree(g_gameData.digits[2].memory);
-    EngineFree(g_gameData.digits[3].memory);
-    EngineFree(g_gameData.digits[4].memory);
-    EngineFree(g_gameData.digits[5].memory);
-    EngineFree(g_gameData.digits[6].memory);
-    EngineFree(g_gameData.digits[7].memory);
-    EngineFree(g_gameData.digits[8].memory);
-    EngineFree(g_gameData.digits[9].memory);
-
-    EngineFree(g_gameData.font.spriteSheet.memory);
 
     EngineFree(g_gameData.backgroundMusic.samples);
     EngineFree(g_gameData.sfxMove.samples);
@@ -751,11 +709,11 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
 
     DrawBitmap(graphicsBuffer, &g_gameData.tetrominoesUI[g_gameState.hold.type], g_gameState.hold.x, g_gameState.hold.y, 90, g_gameState.didUseHoldBox ? 128 : 255);
 
-    DrawNumber(graphicsBuffer, g_gameState.level, 578, 328, 15, 2, true, g_gameData.digits);
-    DrawNumber(graphicsBuffer, g_gameState.score, 578, 238, 15, 2, true, g_gameData.digits);
-    DrawNumber(graphicsBuffer, g_gameState.lines, 578, 148, 15, 2, true, g_gameData.digits);
+    DrawNumber(graphicsBuffer, &g_gameData.font, g_gameState.level, 578, 322, 3, true);
+    DrawNumber(graphicsBuffer, &g_gameData.font, g_gameState.score, 578, 232, 3, true);
+    DrawNumber(graphicsBuffer, &g_gameData.font, g_gameState.lines, 578, 142, 3, true);
 
-    DrawNumber(graphicsBuffer, g_gameState.highScore, 578, 463, 15, 2, true, g_gameData.digits);
+    DrawNumber(graphicsBuffer, &g_gameData.font, g_gameState.highScore, 578, 457, 3, true);
 
     UpdateButtonState(&g_gameState.buttonPause, keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
 
@@ -784,31 +742,10 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     }
     DrawRectangle(graphicsBuffer, g_gameState.buttonPause.x, g_gameState.buttonPause.y, g_gameState.buttonPause.width, g_gameState.buttonPause.height, buttonColour);
 
-    const char* testString = "Hello, world";
-    i32 testStringLength = 22;
-    i32 characterWidth = g_gameData.font.spriteSheet.width / g_gameData.font.sheetWidth;
-    i32 characterHeight = g_gameData.font.spriteSheet.height / g_gameData.font.sheetHeight;
-    i32 strX = 10;
-    i32 strY = 50;
-    for (i32 i = 0; i < testStringLength; ++i) {
-        i32 index = 0;
-        while (testString[i] != g_gameData.font.characters[index] && index < g_gameData.font.charactersCount) {
-            ++index;
-        } 
-        if (index >= g_gameData.font.charactersCount) {
-            strX += characterWidth;
-            continue;
-        }
-
-        i32 sourceX = (index % g_gameData.font.sheetWidth) * characterWidth;
-        i32 sourceY = (g_gameData.font.sheetHeight - index / g_gameData.font.sheetWidth - 1) * characterHeight;
-
-        DrawPartialBitmap(graphicsBuffer, &g_gameData.font.spriteSheet, strX, strY, sourceX, sourceY, characterWidth, characterHeight, 255);
-        strX += characterWidth;
-    }
+    DrawText(graphicsBuffer, &g_gameData.font, "Hello, World", 10, 50, 3, false);
 
     extern u32 DEBUG_microsecondsElapsed;
-    DrawNumber(graphicsBuffer, DEBUG_microsecondsElapsed, 10, 10, 15, 2, false, g_gameData.digits);
+    DrawNumber(graphicsBuffer, &g_gameData.font, DEBUG_microsecondsElapsed, 10, 4, 3, false);
 }
 
 // SCENE 2 //
@@ -820,8 +757,9 @@ static void CloseScene2(void) {
 }
 
 static void Scene2(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
-    DrawRectangle(graphicsBuffer, 0, 0, graphicsBuffer->width, graphicsBuffer->height, 0xFFFFFF);
-    DrawRectangle(graphicsBuffer, keyboardState->mouseX, keyboardState->mouseY, 16, 16, 0x000000);
+    DrawRectangle(graphicsBuffer, 0, 0, graphicsBuffer->width, graphicsBuffer->height, 0x000000);
+    DrawRectangle(graphicsBuffer, keyboardState->mouseX, keyboardState->mouseY, 16, 16, 0xFFFFFF);
+    DrawText(graphicsBuffer, &g_gameData.font, "Click anywhere to play again", 960, 540, 3, true);
 
     if (PRESSED(keyboardState->mouseLeft)) {
         g_gameState.currentScene = &Scene1;
@@ -865,7 +803,8 @@ static void Scene3(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     }
     DrawRectangle(graphicsBuffer, g_gameState.buttonPause.x, g_gameState.buttonPause.y, g_gameState.buttonPause.width, g_gameState.buttonPause.height, buttonColour);
 
-    DrawRectangle(graphicsBuffer, keyboardState->mouseX, keyboardState->mouseY, 16, 16, 0xFFFFFF);
+    DrawRectangle(graphicsBuffer, 900, 530, 120, 50, 0x0b132b);
+    DrawText(graphicsBuffer, &g_gameData.font, "Paused", 960, 540, 3, true);
 
     if (PRESSED(keyboardState->esc) || g_gameState.buttonPause.state == button_state_pressed) {
         CloseScene3();
@@ -876,6 +815,20 @@ static void Scene3(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
 
 
 void OnStartup(void) {
+    g_gameData.digits[0] = LoadBMP("assets/graphics/digits/digit_0.bmp");
+    g_gameData.digits[1] = LoadBMP("assets/graphics/digits/digit_1.bmp");
+    g_gameData.digits[2] = LoadBMP("assets/graphics/digits/digit_2.bmp");
+    g_gameData.digits[3] = LoadBMP("assets/graphics/digits/digit_3.bmp");
+    g_gameData.digits[4] = LoadBMP("assets/graphics/digits/digit_4.bmp");
+    g_gameData.digits[5] = LoadBMP("assets/graphics/digits/digit_5.bmp");
+    g_gameData.digits[6] = LoadBMP("assets/graphics/digits/digit_6.bmp");
+    g_gameData.digits[7] = LoadBMP("assets/graphics/digits/digit_7.bmp");
+    g_gameData.digits[8] = LoadBMP("assets/graphics/digits/digit_8.bmp");
+    g_gameData.digits[9] = LoadBMP("assets/graphics/digits/digit_9.bmp");
+
+    g_gameData.font = InitFont("assets/letters_sprite_sheet2.bmp", 13, 5, "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.-");
+
+
     InitScene1();
     g_gameState.currentScene = &Scene1;
 }
