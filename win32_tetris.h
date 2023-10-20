@@ -9,6 +9,7 @@
 #define SOUND_BYTES_PER_SAMPLE 4
 #define SOUND_BUFFER_SIZE (i32)(2.0f * SOUND_SAMPLES_PER_SECOND)
 
+// Don't change these
 #define BITMAP_WIDTH  1920
 #define BITMAP_HEIGHT 1080
 

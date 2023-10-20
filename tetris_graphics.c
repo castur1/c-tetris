@@ -238,54 +238,41 @@ void DrawBitmapStupid(bitmap_buffer* bitmapDest, bitmap_buffer* bitmapSource, i3
     }
 }
 
-void DrawNumber(bitmap_buffer* bitmapDest, font_t* font, i32 number, i32 x, i32 y, i32 spacing, b32 isCentred) {
-    i32 digitCount = 1;
-    i32 denom = 10;
-    while (number / denom) {
-        denom *= 10;
-        ++digitCount;
-    }
-    denom /= 10;
+void DrawBitmapStupidWithOpacity(bitmap_buffer* bitmapDest, bitmap_buffer* bitmapSource, i32 x, i32 y, u8 opacity) {
+    u32* rowDest = (u32*)bitmapDest->memory + y * bitmapDest->width + x;
+    u32* source = bitmapSource->memory;
+    for (i32 y = 0; y < bitmapSource->height; ++y) {
+        u32* dest = rowDest;
+        for (i32 x = 0; x < bitmapSource->width; ++x) {
+            u32 sc = *source;
+            u8 sa = sc >> 24;
+            sa = Min(sa, opacity);
 
-    if (isCentred) {
-        i32 denom2 = denom;
-        i32 number2 = number;
+            if (sa == 255) {
+                *dest = sc;
+            }
+            else if (sa) {
+                u8 sr = sc >> 16;
+                u8 sg = sc >> 8;
+                u8 sb = sc;
 
-        i32 widthInPixels = 0;
-        for (i32 i = 0; i < digitCount; ++i) {
-            i32 digit = number2 / denom2;
-            number2 %= denom2;
-            denom2 /= 10;
+                u32 dc = *dest;
+                u8 dr = dc >> 16;
+                u8 dg = dc >> 8;
+                u8 db = dc;
 
-            i32 index = 0;
-            while (font->characters[index] != (digit + '0') && index < font->charactersCount) {
-                ++index;
+                f32 t = sa / 255.0f;
+                u32 r = dr + t * (i32)(sr - dr);
+                u32 g = dg + t * (i32)(sg - dg);
+                u32 b = db + t * (i32)(sb - db);
+
+                *dest = RGBToU32(r, g, b);
             }
 
-            widthInPixels += font->widths[index] + spacing;
+            ++dest;
+            ++source;
         }
-
-        x -= widthInPixels / 2;
-    }
-
-    for (i32 i = 0; i < digitCount; ++i) {
-        i32 digit = number / denom;
-        number %= denom;
-        denom /= 10;
-
-        i32 index = 0;
-        while (font->characters[index] != (digit + '0') && index < font->charactersCount) {
-            ++index;
-        }
-
-        if (index < font->charactersCount) {
-            i32 sourceX = (index % font->sheetWidth) * font->spriteWidth + font->offsets[index];
-            i32 sourceY = (font->sheetHeight - index / font->sheetWidth - 1) * font->spriteHeight;
-
-            DrawPartialBitmap(bitmapDest, &font->spriteSheet, x, y, sourceX, sourceY, font->widths[index], font->spriteHeight, 255);
-        }
-
-        x += font->widths[index] + spacing;
+        rowDest += bitmapDest->width;
     }
 }
 
@@ -348,6 +335,90 @@ font_t InitFont(const char* filePath, i32 sheetWidth, i32 sheetHeight, const cha
     result.offsets[result.charactersCount] = 0;
 
     return result;
+}
+
+void DrawNumber(bitmap_buffer* bitmapDest, font_t* font, i32 number, i32 x, i32 y, i32 spacing, b32 isCentred) {
+    b32 isNegative = false;
+    if (number < 0) {
+        isNegative = true;
+        number = -number;
+    }
+
+    i32 digitCount = 1;
+    i32 denom = 10;
+    while (number / denom) {
+        denom *= 10;
+        ++digitCount;
+    }
+    denom /= 10;
+
+    if (isCentred) {
+        i32 denom2 = denom;
+        i32 number2 = number;
+
+        i32 widthInPixels = 0;
+
+        if (isNegative) {
+            i32 index = 0;
+            while (font->characters[index] != '-' && index < font->charactersCount) {
+                ++index;
+            }
+
+            // widths[charactersCount] is space, which is why this works
+            widthInPixels += font->widths[index];
+        }
+
+        for (i32 i = 0; i < digitCount; ++i) {
+            i32 digit = number2 / denom2;
+            number2 %= denom2;
+            denom2 /= 10;
+
+            i32 index = 0;
+            while (font->characters[index] != (digit + '0') && index < font->charactersCount) {
+                ++index;
+            }
+
+            widthInPixels += font->widths[index] + spacing;
+        }
+
+        x -= widthInPixels / 2;
+    }
+
+    if (isNegative) {
+        i32 index = 0;
+        while (font->characters[index] != '-' && index < font->charactersCount) {
+            ++index;
+        }
+
+        if (index < font->charactersCount) {
+            i32 sourceX = (index % font->sheetWidth) * font->spriteWidth + font->offsets[index];
+            i32 sourceY = (font->sheetHeight - index / font->sheetWidth - 1) * font->spriteHeight;
+
+            DrawPartialBitmap(bitmapDest, &font->spriteSheet, x, y, sourceX, sourceY, font->widths[index], font->spriteHeight, 255);
+        }
+
+        x += font->widths[index] + spacing;
+    }
+
+    for (i32 i = 0; i < digitCount; ++i) {
+        i32 digit = number / denom;
+        number %= denom;
+        denom /= 10;
+
+        i32 index = 0;
+        while (font->characters[index] != (digit + '0') && index < font->charactersCount) {
+            ++index;
+        }
+
+        if (index < font->charactersCount) {
+            i32 sourceX = (index % font->sheetWidth) * font->spriteWidth + font->offsets[index];
+            i32 sourceY = (font->sheetHeight - index / font->sheetWidth - 1) * font->spriteHeight;
+
+            DrawPartialBitmap(bitmapDest, &font->spriteSheet, x, y, sourceX, sourceY, font->widths[index], font->spriteHeight, 255);
+        }
+
+        x += font->widths[index] + spacing;
+    }
 }
 
 void DrawText(bitmap_buffer* bitmapDest, font_t* font, const char* text, i32 x, i32 y, i32 spacing, b32 isCentred) {
