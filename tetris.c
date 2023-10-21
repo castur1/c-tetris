@@ -452,8 +452,6 @@ static void InitScene1(void) {
     g_data.sfxLevelUp   = LoadWAV("assets/audio/sfx6.wav");
     g_data.sfxSoftDrop  = LoadWAV("assets/audio/sfx1.wav");
 
-    g_state.audioVolume = 1.0f;
-
     PlaySound(&g_data.backgroundMusic, true, BACKGROUND_MUSIC, g_state.audioChannels, AUDIO_CHANNEL_COUNT);
 
     RandomInit();
@@ -519,8 +517,8 @@ static void CloseScene1(void) {
 
 static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
     if (PRESSED(keyboardState->esc)) {
-        g_state.currentScene = &Scene3;
         InitScene3();
+        g_state.currentScene = &Scene3;
         return;
     }
 
@@ -692,9 +690,9 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
                         EngineWriteEntireFile("data/data.txt", &data, sizeof(save_data));
                     }
 
-                    g_state.currentScene = &Scene2;
                     CloseScene1();
                     InitScene2();
+                    g_state.currentScene = &Scene2;
                     return;
                 }
 
@@ -745,8 +743,8 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     UpdateButtonState(&g_state.buttonPause, keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
 
     if (g_state.buttonPause.state == button_state_pressed) {
-        g_state.currentScene = &Scene3;
         InitScene3();
+        g_state.currentScene = &Scene3;
     }
 
     u32 buttonColour = 0;
@@ -779,11 +777,15 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
 // SCENE 2 //
 
 static void InitScene2(void) {
-    g_data.background = LoadBMP("assets/tetris_background_title2.bmp");
+    g_data.background = LoadBMP("assets/graphics/tetris_background_title2.bmp");
 
-    g_data.buttonStartGame = LoadBMP("assets/start_game_button.bmp");
-    g_data.buttonOptions = LoadBMP("assets/options_button.bmp");
-    g_data.buttonQuitGame = LoadBMP("assets/quit_game_button.bmp");
+    g_data.buttonStartGame = LoadBMP("assets/graphics/start_game_button.bmp");
+    g_data.buttonOptions = LoadBMP("assets/graphics/options_button.bmp");
+    g_data.buttonQuitGame = LoadBMP("assets/graphics/quit_game_button.bmp");
+
+    g_data.backgroundMusic = LoadWAV("assets/audio/Tetris3.wav");
+
+    PlaySound(&g_data.backgroundMusic, true, BACKGROUND_MUSIC, g_state.audioChannels, AUDIO_CHANNEL_COUNT);
 
     g_state.buttonStart = (button_t){
         .x      = 830,
@@ -819,10 +821,13 @@ static void CloseScene2(void) {
     EngineFree(g_data.buttonOptions.memory);
     EngineFree(g_data.buttonQuitGame.memory);
 
+    EngineFree(g_data.backgroundMusic.samples);
+
     StopAllSounds(g_state.audioChannels, AUDIO_CHANNEL_COUNT);
 }
 
 // REFACTOR
+// Also, ignore mouse cursor if keyboard was last used
 static void Scene2(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
     UpdateButtonState(&g_state.buttonStart,   keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
     UpdateButtonState(&g_state.buttonOptions, keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
@@ -846,16 +851,16 @@ static void Scene2(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     }
 
     if (g_state.buttonStart.state == button_state_pressed   || (g_state.currentButtonIndex == 0 && PRESSED(keyboardState->enter))) {
-        g_state.currentScene = &Scene1;
         CloseScene2();
         InitScene1();
+        g_state.currentScene = &Scene1;
         return;
     }
 
     if (g_state.buttonOptions.state == button_state_pressed || (g_state.currentButtonIndex == 1 && PRESSED(keyboardState->enter))) {
-        g_state.currentScene = &Scene4;
         CloseScene2();
         InitScene4();
+        g_state.currentScene = &Scene4;
         return;
     }
 
@@ -898,11 +903,77 @@ static void Scene2(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
 // SCENE 3 //
 
 static void InitScene3(void) {
+    EngineFree(g_data.tetrominoes[1].memory);
+    EngineFree(g_data.tetrominoes[2].memory);
+    EngineFree(g_data.tetrominoes[3].memory);
+    EngineFree(g_data.tetrominoes[4].memory);
+    EngineFree(g_data.tetrominoes[5].memory);
+    EngineFree(g_data.tetrominoes[6].memory);
+    EngineFree(g_data.tetrominoes[7].memory);
+    g_data.tetrominoes[1] = LoadBMP("assets/graphics/tetrominoes/dim/tetromino_i_dim.bmp");
+    g_data.tetrominoes[2] = LoadBMP("assets/graphics/tetrominoes/dim/tetromino_o_dim.bmp");
+    g_data.tetrominoes[3] = LoadBMP("assets/graphics/tetrominoes/dim/tetromino_t_dim.bmp");
+    g_data.tetrominoes[4] = LoadBMP("assets/graphics/tetrominoes/dim/tetromino_s_dim.bmp");
+    g_data.tetrominoes[5] = LoadBMP("assets/graphics/tetrominoes/dim/tetromino_z_dim.bmp");
+    g_data.tetrominoes[6] = LoadBMP("assets/graphics/tetrominoes/dim/tetromino_j_dim.bmp");
+    g_data.tetrominoes[7] = LoadBMP("assets/graphics/tetrominoes/dim/tetromino_l_dim.bmp");
+
+    EngineFree(g_data.tetrominoesUI[1].memory);
+    EngineFree(g_data.tetrominoesUI[2].memory);
+    EngineFree(g_data.tetrominoesUI[3].memory);
+    EngineFree(g_data.tetrominoesUI[4].memory);
+    EngineFree(g_data.tetrominoesUI[5].memory);
+    EngineFree(g_data.tetrominoesUI[6].memory);
+    EngineFree(g_data.tetrominoesUI[7].memory);
+    g_data.tetrominoesUI[1] = LoadBMP("assets/graphics/tetrominoes_ui/dim/tetromino_i_ui_dim.bmp");
+    g_data.tetrominoesUI[2] = LoadBMP("assets/graphics/tetrominoes_ui/dim/tetromino_o_ui_dim.bmp");
+    g_data.tetrominoesUI[3] = LoadBMP("assets/graphics/tetrominoes_ui/dim/tetromino_t_ui_dim.bmp");
+    g_data.tetrominoesUI[4] = LoadBMP("assets/graphics/tetrominoes_ui/dim/tetromino_s_ui_dim.bmp");
+    g_data.tetrominoesUI[5] = LoadBMP("assets/graphics/tetrominoes_ui/dim/tetromino_z_ui_dim.bmp");
+    g_data.tetrominoesUI[6] = LoadBMP("assets/graphics/tetrominoes_ui/dim/tetromino_j_ui_dim.bmp");
+    g_data.tetrominoesUI[7] = LoadBMP("assets/graphics/tetrominoes_ui/dim/tetromino_l_ui_dim.bmp");
+
+    EngineFree(g_data.background.memory);
+    g_data.background = LoadBMP("assets/graphics/background_dim.bmp");
+
     CopyAudioChannels(g_state.tempAudioChannels, g_state.audioChannels, AUDIO_CHANNEL_COUNT);
     StopAllSounds(g_state.audioChannels, AUDIO_CHANNEL_COUNT);
 }
 
 static void CloseScene3(void) {
+    EngineFree(g_data.tetrominoes[1].memory);
+    EngineFree(g_data.tetrominoes[2].memory);
+    EngineFree(g_data.tetrominoes[3].memory);
+    EngineFree(g_data.tetrominoes[4].memory);
+    EngineFree(g_data.tetrominoes[5].memory);
+    EngineFree(g_data.tetrominoes[6].memory);
+    EngineFree(g_data.tetrominoes[7].memory);
+    g_data.tetrominoes[1] = LoadBMP("assets/graphics/tetrominoes/tetromino_i.bmp");
+    g_data.tetrominoes[2] = LoadBMP("assets/graphics/tetrominoes/tetromino_o.bmp");
+    g_data.tetrominoes[3] = LoadBMP("assets/graphics/tetrominoes/tetromino_t.bmp");
+    g_data.tetrominoes[4] = LoadBMP("assets/graphics/tetrominoes/tetromino_s.bmp");
+    g_data.tetrominoes[5] = LoadBMP("assets/graphics/tetrominoes/tetromino_z.bmp");
+    g_data.tetrominoes[6] = LoadBMP("assets/graphics/tetrominoes/tetromino_j.bmp");
+    g_data.tetrominoes[7] = LoadBMP("assets/graphics/tetrominoes/tetromino_l.bmp");
+
+    EngineFree(g_data.tetrominoesUI[1].memory);
+    EngineFree(g_data.tetrominoesUI[2].memory);
+    EngineFree(g_data.tetrominoesUI[3].memory);
+    EngineFree(g_data.tetrominoesUI[4].memory);
+    EngineFree(g_data.tetrominoesUI[5].memory);
+    EngineFree(g_data.tetrominoesUI[6].memory);
+    EngineFree(g_data.tetrominoesUI[7].memory);
+    g_data.tetrominoesUI[1] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_I_UI.bmp");
+    g_data.tetrominoesUI[2] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_O_UI.bmp");
+    g_data.tetrominoesUI[3] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_T_UI.bmp");
+    g_data.tetrominoesUI[4] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_S_UI.bmp");
+    g_data.tetrominoesUI[5] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_Z_UI.bmp");
+    g_data.tetrominoesUI[6] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_J_UI.bmp");
+    g_data.tetrominoesUI[7] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_L_UI.bmp");
+
+    EngineFree(g_data.background.memory);
+    g_data.background = LoadBMP("assets/graphics/background3.bmp");
+
     CopyAudioChannels(g_state.audioChannels, g_state.tempAudioChannels, AUDIO_CHANNEL_COUNT);
 }
 
@@ -927,9 +998,35 @@ static void Scene3(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
             buttonColour = 0xFFFFFF;
         } break;
     }
+
+    tetromino_t ghost = g_state.current;
+    while (IsTetrominoPosValid(&g_state.board, &ghost)) {
+        --ghost.y;
+    }
+    ++ghost.y;
+
+    DrawBitmapStupid(graphicsBuffer, &g_data.background, 0, 0);
+
+    DrawBoard(graphicsBuffer, &g_state.board, g_data.tetrominoes);
+
+    DrawTetrominoInBoard(graphicsBuffer, &g_state.board, &g_state.current, &g_data.tetrominoes[g_state.current.type], 255);
+
+    DrawTetrominoInBoard(graphicsBuffer, &g_state.board, &ghost, &g_data.tetrominoes[ghost.type], 64);
+
+    DrawBitmap(graphicsBuffer, &g_data.tetrominoesUI[g_state.next[0].type], g_state.next[0].x, g_state.next[0].y, 90, 255);
+    DrawBitmap(graphicsBuffer, &g_data.tetrominoesUI[g_state.next[1].type], g_state.next[1].x, g_state.next[1].y, 90, 255);
+    DrawBitmap(graphicsBuffer, &g_data.tetrominoesUI[g_state.next[2].type], g_state.next[2].x, g_state.next[2].y, 90, 255);
+
+    DrawBitmap(graphicsBuffer, &g_data.tetrominoesUI[g_state.hold.type], g_state.hold.x, g_state.hold.y, 90, g_state.didUseHoldBox ? 128 : 255);
+
+    DrawNumber(graphicsBuffer, &g_data.font, g_state.level, 578, 322, 3, true);
+    DrawNumber(graphicsBuffer, &g_data.font, g_state.score, 578, 232, 3, true);
+    DrawNumber(graphicsBuffer, &g_data.font, g_state.lines, 578, 142, 3, true);
+
+    DrawNumber(graphicsBuffer, &g_data.font, g_state.highScore, 578, 457, 3, true);
+
     DrawRectangle(graphicsBuffer, g_state.buttonPause.x, g_state.buttonPause.y, g_state.buttonPause.width, g_state.buttonPause.height, buttonColour);
 
-    DrawRectangle(graphicsBuffer, 900, 530, 120, 50, 0x0b132b);
     DrawText(graphicsBuffer, &g_data.font, "Paused", 960, 540, 3, true);
 
     if (PRESSED(keyboardState->esc) || g_state.buttonPause.state == button_state_pressed) {
@@ -959,7 +1056,8 @@ static void Scene4(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
 
 
 void OnStartup(void) {
-    g_data.font = InitFont("assets/letters_sprite_sheet2.bmp", 13, 5, "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.-");
+    g_data.font = InitFont("assets/graphics/letters_sprite_sheet2.bmp", 13, 5, "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.-");
+    g_state.audioVolume = 1.0f;
 
 
     InitScene2();
