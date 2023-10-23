@@ -30,6 +30,8 @@
 #define SCORE_SOFT_DROP 1
 #define SCORE_HARD_DROP 2
 
+#define SAVE_DATA_PATH "data/data.txt"
+
 
 #define PRESSED(key) (key.isDown && key.didChangeState)
 
@@ -106,8 +108,8 @@ typedef struct game_state {
     scene_pointer currentScene;
 
     audio_channel audioChannels[AUDIO_CHANNEL_COUNT];
-    f32 audioVolume;
 
+    f32 audioVolume;
     i32 highScore;
 
     // Scene 1 //
@@ -176,10 +178,13 @@ typedef struct game_data {
 
     // Scene 4 //
 
+    // Background
+
 } game_data;
 
 typedef struct save_data {
     i32 highScore;
+    f32 audioVolume;
 } save_data;
 
 
@@ -369,7 +374,10 @@ static save_data ReadSaveData(const char* filePath) {
 
     save_data data;
     if (bytesRead != sizeof(save_data)) {
-        data = (save_data){ .highScore = 0 };
+        data = (save_data){ 
+            .highScore = 0, 
+            .audioVolume = 1.0f
+        };
         EngineWriteEntireFile(filePath, &data, sizeof(save_data));
     }
     else {
@@ -379,7 +387,10 @@ static save_data ReadSaveData(const char* filePath) {
     EngineFree(contents);
 
     return data;
-    
+}
+
+static void WriteSaveData(const char* filePath, game_data* data) {
+    EngineWriteEntireFile(filePath, data, sizeof(save_data));
 }
 
 static inline b32 IsPointInRect(i32 px, i32 py, i32 rxl, i32 ryl, i32 rxr, i32 ryr) {
@@ -470,8 +481,9 @@ static void InitScene1(void) {
     g_state.level = 1;
     g_state.lines = 0;
 
-    save_data data = ReadSaveData("data/data.txt");
+    save_data data = ReadSaveData(SAVE_DATA_PATH);
     g_state.highScore = data.highScore;
+
 
     g_state.buttonPause = (button_t){
         .x      = 1770,
@@ -685,9 +697,9 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
                     if (g_state.score > g_state.highScore) {
                         g_state.highScore = g_state.score;
 
-                        save_data data = ReadSaveData("data/data.txt");
+                        save_data data = ReadSaveData(SAVE_DATA_PATH);
                         data.highScore = g_state.highScore;
-                        EngineWriteEntireFile("data/data.txt", &data, sizeof(save_data));
+                        WriteSaveData(SAVE_DATA_PATH, &data);
                     }
 
                     CloseScene1();
@@ -1038,13 +1050,25 @@ static void Scene3(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
 
 // Scene 4 //
 
-static void InitScene4(void) { }
+static void InitScene4(void) {
+    g_data.background = LoadBMP("assets/graphics/background_options.bmp");
+}
 
-static void CloseScene4(void) { }
+static void CloseScene4(void) {
+    EngineFree(g_data.background.memory);
+
+    save_data data = ReadSaveData(SAVE_DATA_PATH);
+    data.audioVolume = g_state.audioVolume;
+    WriteSaveData(SAVE_DATA_PATH, &data);
+}
 
 static void Scene4(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
-    DrawRectangle(graphicsBuffer, 0, 0, graphicsBuffer->width, graphicsBuffer->height, 0x000000);
-    DrawText(graphicsBuffer, &g_data.font, "OPTIONS", 960, 520, 3, true);
+    DrawBitmapStupid(graphicsBuffer, &g_data.background, 0, 0);
+
+    g_state.audioVolume += (PRESSED(keyboardState->right) - PRESSED(keyboardState->left)) * 0.1f;
+    g_state.audioVolume = Clamp(g_state.audioVolume, 0.0f, 3.0f);
+
+    DrawNumber(graphicsBuffer, &g_data.font, 10 * g_state.audioVolume, 960, 540, 3, true);
 
     if (PRESSED(keyboardState->mouseLeft) || PRESSED(keyboardState->enter)) {
         CloseScene4();
@@ -1057,7 +1081,10 @@ static void Scene4(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
 
 void OnStartup(void) {
     g_data.font = InitFont("assets/graphics/letters_sprite_sheet2.bmp", 13, 5, "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.-");
-    g_state.audioVolume = 1.0f;
+
+    save_data data = ReadSaveData(SAVE_DATA_PATH);
+    g_state.highScore = data.highScore;
+    g_state.audioVolume = data.audioVolume;
 
 
     InitScene2();
