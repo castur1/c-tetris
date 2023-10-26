@@ -37,7 +37,7 @@
 
 
 typedef enum tetromino_type {
-    tetromino_type_empty,
+    tetromino_type_empty = 0,
     tetromino_type_I,
     tetromino_type_O,
     tetromino_type_T,
@@ -67,18 +67,6 @@ static const u16* TETROMINOES[8] = {
     TETROMINO_L
 };
 
-typedef struct board_t {
-    tetromino_type* tiles;
-    i32 width;
-    i32 height;
-    i32 size;
-    i32 x;
-    i32 y;
-    i32 tileSize;
-    i32 widthPx;
-    i32 heightPx;
-} board_t;
-
 typedef struct tetromino_t {
     tetromino_type type;
     i32 rotation;
@@ -86,8 +74,20 @@ typedef struct tetromino_t {
     i32 y;
 } tetromino_t;
 
+typedef struct board_t {
+    tetromino_type* tiles;
+    i32 width;
+    i32 height;
+    i32 size;     // ?
+    i32 x;
+    i32 y;
+    i32 tileSize;
+    i32 widthPx;  // ?
+    i32 heightPx; // ?
+} board_t;
+
 typedef enum button_state {
-    button_state_idle,
+    button_state_idle = 0,
     button_state_hover,
     button_state_pressed,
     button_state_held,
@@ -104,83 +104,17 @@ typedef struct button_t {
 
 typedef void (*scene_pointer)(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime);
 
-typedef struct game_state {
+typedef struct global_state {
     scene_pointer currentScene;
-
     audio_channel audioChannels[AUDIO_CHANNEL_COUNT];
 
     f32 audioVolume;
     i32 highScore;
+} global_state;
 
-    // Scene 1 //
-
-    f32 timerFall;
-    f32 timerAutoMoveDelay;
-    f32 timerAutoMove;
-    f32 timerLockDelay;
-
-    board_t board;
-    tetromino_t current;
-    tetromino_t next[3];
-    tetromino_t hold;
-    b32 didUseHoldBox;
-    tetromino_type bag[7];
-    i32 bagIndex;
-    i32 score;
-    i32 level;
-    i32 lines;
-
-    button_t buttonPause;
-
-    // Scene 2 //
-
-    button_t buttonStart;
-    button_t buttonOptions;
-    button_t buttonQuit;
-    u8 currentButtonIndex;
-
-    // Scene 3 //
-
-    audio_channel tempAudioChannels[AUDIO_CHANNEL_COUNT];
-
-    // Scene 4 //
-
-} game_state;
-
-typedef struct game_data {
+typedef struct global_data {
     font_t font;
-
-    // Scene 1 //
-
-    bitmap_buffer tetrominoes[8];
-    bitmap_buffer tetrominoesUI[8];
-
-    bitmap_buffer background;
-
-    sound_buffer backgroundMusic;
-    sound_buffer sfxMove;
-    sound_buffer sfxRotate;
-    sound_buffer sfxLock;
-    sound_buffer sfxLineClear;
-    sound_buffer sfxHold;
-    sound_buffer sfxLevelUp;
-    sound_buffer sfxSoftDrop;
-
-    // Scene 2 //
-
-    // background
-
-    bitmap_buffer buttonStartGame;
-    bitmap_buffer buttonOptions;
-    bitmap_buffer buttonQuitGame;
-
-    // Scene 3 //
-
-    // Scene 4 //
-
-    // Background
-
-} game_data;
+} global_data;
 
 typedef struct save_data {
     i32 highScore;
@@ -188,16 +122,18 @@ typedef struct save_data {
 } save_data;
 
 
-static game_state g_state;
-static game_data  g_data;
+static global_state g_globalState;
+static global_data  g_globalData;
+static void* g_sceneState;
+static void* g_sceneData;
 
 
 /*
- * Scene 1: Gameplay
- * Scene 2: Main menu
- * Scene 3: Paused
- * Scene 4: Options
- */
+    * Scene 1: Gameplay
+    * Scene 2: Main menu
+    * Scene 3: Paused
+    * Scene 4: Options
+*/
 
 static void InitScene1(void);
 static void InitScene2(void);
@@ -368,16 +304,20 @@ static f32 GetCurrentGravityInSeconds(i32 level) {
     return gravityInSeconds;
 }
 
+static void ResetSaveData(save_data* data) {
+    *data = (save_data){
+        .highScore = 0,
+        .audioVolume = 1.0f
+    };
+}
+
 static save_data ReadSaveData(const char* filePath) {
     i32 bytesRead = 0;
     void* contents = EngineReadEntireFile(filePath, &bytesRead);
 
     save_data data;
     if (bytesRead != sizeof(save_data)) {
-        data = (save_data){ 
-            .highScore = 0, 
-            .audioVolume = 1.0f
-        };
+        ResetSaveData(&data);
         EngineWriteEntireFile(filePath, &data, sizeof(save_data));
     }
     else {
@@ -389,7 +329,7 @@ static save_data ReadSaveData(const char* filePath) {
     return data;
 }
 
-static void WriteSaveData(const char* filePath, game_data* data) {
+static void WriteSaveData(const char* filePath, save_data* data) {
     EngineWriteEntireFile(filePath, data, sizeof(save_data));
 }
 
@@ -430,62 +370,105 @@ static void UpdateButtonState(button_t* button, i32 mouseX, i32 mouseY, keyboard
     }
 }
 
+
 // SCENE 1 //
 
+typedef struct scene1_state {
+    f32 timerFall;
+    f32 timerAutoMoveDelay;
+    f32 timerAutoMove;
+    f32 timerLockDelay;
+
+    board_t board;
+    tetromino_t current;
+    tetromino_t next[3];
+    tetromino_t hold;
+    b32 didUseHoldBox;
+    tetromino_type bag[7];
+    i32 bagIndex;
+    i32 score;
+    i32 level;
+    i32 lines;
+
+    button_t buttonPause;
+} scene1_state;
+
+typedef struct scene1_data {
+    bitmap_buffer tetrominoes[8];
+    bitmap_buffer tetrominoesUI[8];
+
+    bitmap_buffer background;
+
+    sound_buffer backgroundMusic;
+    sound_buffer sfxMove;
+    sound_buffer sfxRotate;
+    sound_buffer sfxLock;
+    sound_buffer sfxLineClear;
+    sound_buffer sfxHold;
+    sound_buffer sfxLevelUp;
+    sound_buffer sfxSoftDrop;
+} scene1_data;
+
 static void InitScene1(void) {
-    g_data.tetrominoes[1] = LoadBMP("assets/graphics/tetrominoes/tetromino_i.bmp");
-    g_data.tetrominoes[2] = LoadBMP("assets/graphics/tetrominoes/tetromino_o.bmp");
-    g_data.tetrominoes[3] = LoadBMP("assets/graphics/tetrominoes/tetromino_t.bmp");
-    g_data.tetrominoes[4] = LoadBMP("assets/graphics/tetrominoes/tetromino_s.bmp");
-    g_data.tetrominoes[5] = LoadBMP("assets/graphics/tetrominoes/tetromino_z.bmp");
-    g_data.tetrominoes[6] = LoadBMP("assets/graphics/tetrominoes/tetromino_j.bmp");
-    g_data.tetrominoes[7] = LoadBMP("assets/graphics/tetrominoes/tetromino_l.bmp");
+    g_sceneState = EngineAllocate(sizeof(scene1_state));
+    g_sceneData  = EngineAllocate(sizeof(scene1_data));
 
-    g_data.tetrominoesUI[1] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_I_UI.bmp");
-    g_data.tetrominoesUI[2] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_O_UI.bmp");
-    g_data.tetrominoesUI[3] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_T_UI.bmp");
-    g_data.tetrominoesUI[4] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_S_UI.bmp");
-    g_data.tetrominoesUI[5] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_Z_UI.bmp");
-    g_data.tetrominoesUI[6] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_J_UI.bmp");
-    g_data.tetrominoesUI[7] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_L_UI.bmp");
+    scene1_state* state = g_sceneState;
+    scene1_data*  data  = g_sceneData;
 
-    g_data.background = LoadBMP("assets/graphics/background3.bmp");
+
+    data->tetrominoes[1] = LoadBMP("assets/graphics/tetrominoes/tetromino_i.bmp");
+    data->tetrominoes[2] = LoadBMP("assets/graphics/tetrominoes/tetromino_o.bmp");
+    data->tetrominoes[3] = LoadBMP("assets/graphics/tetrominoes/tetromino_t.bmp");
+    data->tetrominoes[4] = LoadBMP("assets/graphics/tetrominoes/tetromino_s.bmp");
+    data->tetrominoes[5] = LoadBMP("assets/graphics/tetrominoes/tetromino_z.bmp");
+    data->tetrominoes[6] = LoadBMP("assets/graphics/tetrominoes/tetromino_j.bmp");
+    data->tetrominoes[7] = LoadBMP("assets/graphics/tetrominoes/tetromino_l.bmp");
+
+    data->tetrominoesUI[1] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_I_UI.bmp");
+    data->tetrominoesUI[2] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_O_UI.bmp");
+    data->tetrominoesUI[3] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_T_UI.bmp");
+    data->tetrominoesUI[4] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_S_UI.bmp");
+    data->tetrominoesUI[5] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_Z_UI.bmp");
+    data->tetrominoesUI[6] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_J_UI.bmp");
+    data->tetrominoesUI[7] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_L_UI.bmp");
+
+    data->background = LoadBMP("assets/graphics/background3.bmp");
 
     // Continue working on this (or redo it idk)
-    g_data.backgroundMusic = LoadWAV("assets/audio/Tetris3.wav");
+    data->backgroundMusic = LoadWAV("assets/audio/Tetris3.wav");
 
     // Look these over
-    g_data.sfxMove      = LoadWAV("assets/audio/sfx1.wav");
-    g_data.sfxRotate    = LoadWAV("assets/audio/sfx4.wav");
-    g_data.sfxLock      = LoadWAV("assets/audio/sfx3.wav");
-    g_data.sfxLineClear = LoadWAV("assets/audio/sfx5.wav"); 
-    g_data.sfxHold      = LoadWAV("assets/audio/sfx2.wav");
-    g_data.sfxLevelUp   = LoadWAV("assets/audio/sfx6.wav");
-    g_data.sfxSoftDrop  = LoadWAV("assets/audio/sfx1.wav");
+    data->sfxMove      = LoadWAV("assets/audio/sfx1.wav");
+    data->sfxRotate    = LoadWAV("assets/audio/sfx4.wav");
+    data->sfxLock      = LoadWAV("assets/audio/sfx3.wav");
+    data->sfxLineClear = LoadWAV("assets/audio/sfx5.wav"); 
+    data->sfxHold      = LoadWAV("assets/audio/sfx2.wav");
+    data->sfxLevelUp   = LoadWAV("assets/audio/sfx6.wav");
+    data->sfxSoftDrop  = LoadWAV("assets/audio/sfx1.wav");
 
-    PlaySound(&g_data.backgroundMusic, true, BACKGROUND_MUSIC, g_state.audioChannels, AUDIO_CHANNEL_COUNT);
+    PlaySound(&data->backgroundMusic, true, BACKGROUND_MUSIC, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
 
     RandomInit();
 
-    g_state.board = InitBoard(BOARD_WIDTH, BOARD_HEIGHT, 735, 90, 45);
+    state->board = InitBoard(BOARD_WIDTH, BOARD_HEIGHT, 735, 90, 45);
 
-    RandomizeBag(g_state.bag);
+    RandomizeBag(state->bag);
 
-    g_state.current = InitTetromino(GetNextTetrominoFromBag(g_state.bag, &g_state.bagIndex), 0, BOARD_WIDTH / 2 - 2, BOARD_HEIGHT - 4);
-    g_state.next[0] = InitTetromino(GetNextTetrominoFromBag(g_state.bag, &g_state.bagIndex), 0, 1298, 788);
-    g_state.next[1] = InitTetromino(GetNextTetrominoFromBag(g_state.bag, &g_state.bagIndex), 0, 1298, 653);
-    g_state.next[2] = InitTetromino(GetNextTetrominoFromBag(g_state.bag, &g_state.bagIndex), 0, 1298, 518);
-    g_state.hold = InitTetromino(tetromino_type_empty, 0, 533, 788);
+    state->current = InitTetromino(GetNextTetrominoFromBag(state->bag, &state->bagIndex), 0, BOARD_WIDTH / 2 - 2, BOARD_HEIGHT - 4);
+    state->next[0] = InitTetromino(GetNextTetrominoFromBag(state->bag, &state->bagIndex), 0, 1298, 788);
+    state->next[1] = InitTetromino(GetNextTetrominoFromBag(state->bag, &state->bagIndex), 0, 1298, 653);
+    state->next[2] = InitTetromino(GetNextTetrominoFromBag(state->bag, &state->bagIndex), 0, 1298, 518);
+    state->hold = InitTetromino(tetromino_type_empty, 0, 533, 788);
 
-    g_state.score = 0;
-    g_state.level = 1;
-    g_state.lines = 0;
+    state->score = 0;
+    state->level = 1;
+    state->lines = 0;
 
-    save_data data = ReadSaveData(SAVE_DATA_PATH);
-    g_state.highScore = data.highScore;
+    save_data saveData = ReadSaveData(SAVE_DATA_PATH);
+    g_globalState.highScore = saveData.highScore;
 
-
-    g_state.buttonPause = (button_t){
+    state->buttonPause = (button_t){
         .x      = 1770,
         .y      = 50,
         .width  = 100,
@@ -495,96 +478,116 @@ static void InitScene1(void) {
 }
 
 static void CloseScene1(void) {
-    EngineFree(g_data.tetrominoes[1].memory);
-    EngineFree(g_data.tetrominoes[2].memory);
-    EngineFree(g_data.tetrominoes[3].memory);
-    EngineFree(g_data.tetrominoes[4].memory);
-    EngineFree(g_data.tetrominoes[5].memory);
-    EngineFree(g_data.tetrominoes[6].memory);
-    EngineFree(g_data.tetrominoes[7].memory);
+    scene1_state* state = g_sceneState;
+    scene1_data*  data  = g_sceneData;
 
-    EngineFree(g_data.tetrominoesUI[1].memory);
-    EngineFree(g_data.tetrominoesUI[2].memory);
-    EngineFree(g_data.tetrominoesUI[3].memory);
-    EngineFree(g_data.tetrominoesUI[4].memory);
-    EngineFree(g_data.tetrominoesUI[5].memory);
-    EngineFree(g_data.tetrominoesUI[6].memory);
-    EngineFree(g_data.tetrominoesUI[7].memory);
 
-    EngineFree(g_data.background.memory);
+    EngineFree(data->tetrominoes[1].memory);
+    EngineFree(data->tetrominoes[2].memory);
+    EngineFree(data->tetrominoes[3].memory);
+    EngineFree(data->tetrominoes[4].memory);
+    EngineFree(data->tetrominoes[5].memory);
+    EngineFree(data->tetrominoes[6].memory);
+    EngineFree(data->tetrominoes[7].memory);
 
-    EngineFree(g_data.backgroundMusic.samples);
-    EngineFree(g_data.sfxMove.samples);
-    EngineFree(g_data.sfxRotate.samples);
-    EngineFree(g_data.sfxLock.samples);
-    EngineFree(g_data.sfxLineClear.samples);
-    EngineFree(g_data.sfxHold.samples);
-    EngineFree(g_data.sfxLevelUp.samples);
-    EngineFree(g_data.sfxSoftDrop.samples);
+    EngineFree(data->tetrominoesUI[1].memory);
+    EngineFree(data->tetrominoesUI[2].memory);
+    EngineFree(data->tetrominoesUI[3].memory);
+    EngineFree(data->tetrominoesUI[4].memory);
+    EngineFree(data->tetrominoesUI[5].memory);
+    EngineFree(data->tetrominoesUI[6].memory);
+    EngineFree(data->tetrominoesUI[7].memory);
 
-    EngineFree(g_state.board.tiles);
+    EngineFree(data->background.memory);
 
-    StopAllSounds(g_state.audioChannels, AUDIO_CHANNEL_COUNT);
+    EngineFree(data->backgroundMusic.samples);
+    EngineFree(data->sfxMove.samples);
+    EngineFree(data->sfxRotate.samples);
+    EngineFree(data->sfxLock.samples);
+    EngineFree(data->sfxLineClear.samples);
+    EngineFree(data->sfxHold.samples);
+    EngineFree(data->sfxLevelUp.samples);
+    EngineFree(data->sfxSoftDrop.samples);
+
+    EngineFree(state->board.tiles);
+
+
+    EngineFree(g_sceneState);
+    EngineFree(g_sceneData);
+    g_sceneState = 0;
+    g_sceneData  = 0;
 }
 
 static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
-    if (PRESSED(keyboardState->esc)) {
+    scene1_state* state = g_sceneState;
+    scene1_data*  data  = g_sceneData;
+
+
+    UpdateButtonState(&state->buttonPause, keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
+
+    // This is not a good solution
+    if (PRESSED(keyboardState->esc) || state->buttonPause.state == button_state_pressed) {
         InitScene3();
-        g_state.currentScene = &Scene3;
+        g_globalState.currentScene = &Scene3;
+
+        // This is so scuffed lol. Would this whole thing even work on another computer?
+        *(u32**)g_sceneState = state;
+        *(u32**)g_sceneData  = data;
+
         return;
     }
 
     if (keyboardState->right.isDown) {
-        g_state.timerAutoMoveDelay += deltaTime;
-        if (g_state.timerAutoMoveDelay >= AUTO_MOVE_DELAY) {
-            g_state.timerAutoMove += deltaTime;
+        state->timerAutoMoveDelay += deltaTime;
+        if (state->timerAutoMoveDelay >= AUTO_MOVE_DELAY) {
+            state->timerAutoMove += deltaTime;
         }
-        if (g_state.timerAutoMove >= AUTO_MOVE || keyboardState->right.didChangeState) {
-            g_state.timerAutoMove = 0.0f;
-            ++g_state.current.x;
-            if (!IsTetrominoPosValid(&g_state.board, &g_state.current)) {
-                --g_state.current.x;
+        if (state->timerAutoMove >= AUTO_MOVE || keyboardState->right.didChangeState) {
+            state->timerAutoMove = 0.0f;
+            ++state->current.x;
+            if (!IsTetrominoPosValid(&state->board, &state->current)) {
+                --state->current.x;
             }
             else {
-                PlaySound(&g_data.sfxMove, false, SFX_MOVE, g_state.audioChannels, AUDIO_CHANNEL_COUNT);
+                PlaySound(&data->sfxMove, false, SFX_MOVE, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
             }
         }
     }
     else if (keyboardState->left.isDown) {
-        g_state.timerAutoMoveDelay += deltaTime;
-        if (g_state.timerAutoMoveDelay >= AUTO_MOVE_DELAY) {
-            g_state.timerAutoMove += deltaTime;
+        state->timerAutoMoveDelay += deltaTime;
+        if (state->timerAutoMoveDelay >= AUTO_MOVE_DELAY) {
+            state->timerAutoMove += deltaTime;
         }
-        if (g_state.timerAutoMove >= AUTO_MOVE || keyboardState->left.didChangeState) {
-            g_state.timerAutoMove = 0.0f;
-            --g_state.current.x;
-            if (!IsTetrominoPosValid(&g_state.board, &g_state.current)) {
-                ++g_state.current.x;
+        if (state->timerAutoMove >= AUTO_MOVE || keyboardState->left.didChangeState) {
+            state->timerAutoMove = 0.0f;
+            --state->current.x;
+            if (!IsTetrominoPosValid(&state->board, &state->current)) {
+                ++state->current.x;
             }
             else {
-                PlaySound(&g_data.sfxMove, false, SFX_MOVE, g_state.audioChannels, AUDIO_CHANNEL_COUNT);
+                PlaySound(&data->sfxMove, false, SFX_MOVE, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
             }
         }
     }
     else {
-        g_state.timerAutoMoveDelay = 0.0f;
+        state->timerAutoMoveDelay = 0.0f;
     }
 
     i32 rotationDirection = PRESSED(keyboardState->x) - PRESSED(keyboardState->z);
     if (rotationDirection) {
         b32 didRotate = true;
 
-        g_state.current.rotation = (g_state.current.rotation + rotationDirection + 4) % 4;
-        if (!IsTetrominoPosValid(&g_state.board, &g_state.current)) {
-            g_state.current.x += 1;
-            if (!IsTetrominoPosValid(&g_state.board, &g_state.current)) {
-                g_state.current.x -= 2;
-                if (!IsTetrominoPosValid(&g_state.board, &g_state.current)) {
-                    g_state.current.x += 1;
-                    g_state.current.y += 1;
-                    if (!IsTetrominoPosValid(&g_state.board, &g_state.current)) {
-                        g_state.current.y -= 1;
-                        g_state.current.rotation = (g_state.current.rotation - rotationDirection + 4) % 4;
+        state->current.rotation = (state->current.rotation + rotationDirection + 4) % 4;
+        if (!IsTetrominoPosValid(&state->board, &state->current)) {
+            state->current.x += 1;
+            if (!IsTetrominoPosValid(&state->board, &state->current)) {
+                state->current.x -= 2;
+                if (!IsTetrominoPosValid(&state->board, &state->current)) {
+                    state->current.x += 1;
+                    state->current.y += 1;
+                    if (!IsTetrominoPosValid(&state->board, &state->current)) {
+                        state->current.y -= 1;
+                        state->current.rotation = (state->current.rotation - rotationDirection + 4) % 4;
                         didRotate = false;
                     }
                 }
@@ -592,30 +595,30 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
         }
 
         if (didRotate) {
-            PlaySound(&g_data.sfxRotate, false, SFX_ROTATE, g_state.audioChannels, AUDIO_CHANNEL_COUNT);
+            PlaySound(&data->sfxRotate, false, SFX_ROTATE, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
         }
     }
 
-    if (PRESSED(keyboardState->c) && !g_state.didUseHoldBox) {
-        g_state.didUseHoldBox = true;
+    if (PRESSED(keyboardState->c) && !state->didUseHoldBox) {
+        state->didUseHoldBox = true;
 
-        tetromino_type currentType = g_state.current.type;
-        if (g_state.hold.type == tetromino_type_empty) {
-            g_state.current = InitTetromino(g_state.next[0].type, 0, BOARD_WIDTH / 2 - 2, BOARD_HEIGHT - 4, &g_data.tetrominoes);
-            g_state.next[0].type = g_state.next[1].type;
-            g_state.next[1].type = g_state.next[2].type;
-            g_state.next[2].type = GetNextTetrominoFromBag(g_state.bag, &g_state.bagIndex);
+        tetromino_type currentType = state->current.type;
+        if (state->hold.type == tetromino_type_empty) {
+            state->current = InitTetromino(state->next[0].type, 0, BOARD_WIDTH / 2 - 2, BOARD_HEIGHT - 4, &data->tetrominoes);
+            state->next[0].type = state->next[1].type;
+            state->next[1].type = state->next[2].type;
+            state->next[2].type = GetNextTetrominoFromBag(state->bag, &state->bagIndex);
         }
         else {
-            g_state.current = InitTetromino(g_state.hold.type, 0, BOARD_WIDTH / 2 - 2, BOARD_HEIGHT - 4, &g_data.tetrominoes);
+            state->current = InitTetromino(state->hold.type, 0, BOARD_WIDTH / 2 - 2, BOARD_HEIGHT - 4, &data->tetrominoes);
         }
-        g_state.hold.type = currentType;
+        state->hold.type = currentType;
 
-        PlaySound(&g_data.sfxHold, false, SFX_HOLD, g_state.audioChannels, AUDIO_CHANNEL_COUNT);
+        PlaySound(&data->sfxHold, false, SFX_HOLD, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
     }
 
     b32 didSoftDrop = false;
-    f32 gravityInSeconds = GetCurrentGravityInSeconds(g_state.level);
+    f32 gravityInSeconds = GetCurrentGravityInSeconds(state->level);
     if (keyboardState->down.isDown && gravityInSeconds > SOFT_DROP) {
         didSoftDrop = true;
         gravityInSeconds = SOFT_DROP;
@@ -624,143 +627,136 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     b32 didHardDrop = false;
     if (PRESSED(keyboardState->up)) {
         didHardDrop = true;
-        while (IsTetrominoPosValid(&g_state.board, &g_state.current)) {
-            --g_state.current.y;
-            g_state.score += SCORE_HARD_DROP * g_state.level;
+        while (IsTetrominoPosValid(&state->board, &state->current)) {
+            --state->current.y;
+            state->score += SCORE_HARD_DROP * state->level;
         }
-        ++g_state.current.y;
-        g_state.score -= SCORE_HARD_DROP * g_state.level;
+        ++state->current.y;
+        state->score -= SCORE_HARD_DROP * state->level;
     }
 
-    g_state.timerFall += deltaTime;
-    if (g_state.timerFall >= gravityInSeconds || didHardDrop || g_state.timerLockDelay >= 0.001f) {
-        g_state.timerFall = 0.0f;
+    state->timerFall += deltaTime;
+    if (state->timerFall >= gravityInSeconds || didHardDrop || state->timerLockDelay >= 0.001f) {
+        state->timerFall = 0.0f;
 
-        --g_state.current.y;
+        --state->current.y;
 
-        if (!IsTetrominoPosValid(&g_state.board, &g_state.current)) {
-            ++g_state.current.y;
+        if (!IsTetrominoPosValid(&state->board, &state->current)) {
+            ++state->current.y;
 
-            g_state.timerLockDelay += deltaTime;
-            if (g_state.timerLockDelay >= LOCK_DELAY || didHardDrop) {
-                PlaceTetromino(&g_state.board, &g_state.current);
+            state->timerLockDelay += deltaTime;
+            if (state->timerLockDelay >= LOCK_DELAY || didHardDrop) {
+                PlaceTetromino(&state->board, &state->current);
 
-                i32 lineClearCount = ProcessLineClears(&g_state.board, &g_state.current);
-                g_state.lines += lineClearCount;
+                i32 lineClearCount = ProcessLineClears(&state->board, &state->current);
+                state->lines += lineClearCount;
                 switch (lineClearCount) {
                     case 1: {
-                        g_state.score += SCORE_SINGLE * g_state.level;
+                        state->score += SCORE_SINGLE * state->level;
                     } break;
                     case 2: {
-                        g_state.score += SCORE_DOUBLE * g_state.level;
+                        state->score += SCORE_DOUBLE * state->level;
                     } break;
                     case 3: {
-                        g_state.score += SCORE_TRIPLE * g_state.level;
+                        state->score += SCORE_TRIPLE * state->level;
                     } break;
                     case 4: {
-                        g_state.score += SCORE_QUADRUPLE * g_state.level;
+                        state->score += SCORE_QUADRUPLE * state->level;
                     } break;
                 }
 
 
-                if (g_state.lines >= g_state.level * 10) {
-                    ++g_state.level;
-                    PlaySound(&g_data.sfxLevelUp, false, SFX_LEVEL_UP, g_state.audioChannels, AUDIO_CHANNEL_COUNT);
+                if (state->lines >= state->level * 10) {
+                    ++state->level;
+                    PlaySound(&data->sfxLevelUp, false, SFX_LEVEL_UP, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
                 }
                 else {
                     switch (lineClearCount) {
                         case 1: {
-                            PlaySound(&g_data.sfxLineClear, false, SFX_LINE_CLEAR, g_state.audioChannels, AUDIO_CHANNEL_COUNT);
+                            PlaySound(&data->sfxLineClear, false, SFX_LINE_CLEAR, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
                         } break;
                         case 2: {
-                            PlaySound(&g_data.sfxLineClear, false, SFX_LINE_CLEAR, g_state.audioChannels, AUDIO_CHANNEL_COUNT);
+                            PlaySound(&data->sfxLineClear, false, SFX_LINE_CLEAR, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
                         } break;
                         case 3: {
-                            PlaySound(&g_data.sfxLineClear, false, SFX_LINE_CLEAR, g_state.audioChannels, AUDIO_CHANNEL_COUNT);
+                            PlaySound(&data->sfxLineClear, false, SFX_LINE_CLEAR, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
                         } break;
                         case 4: {
-                            PlaySound(&g_data.sfxLineClear, false, SFX_LINE_CLEAR, g_state.audioChannels, AUDIO_CHANNEL_COUNT);
+                            PlaySound(&data->sfxLineClear, false, SFX_LINE_CLEAR, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
                         } break;
 
                         default: {
-                            PlaySound(&g_data.sfxLock, false, SFX_LOCK, g_state.audioChannels, AUDIO_CHANNEL_COUNT);
+                            PlaySound(&data->sfxLock, false, SFX_LOCK, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
                         } break;
                     }
                 }
 
-                g_state.current = InitTetromino(g_state.next[0].type, 0, BOARD_WIDTH / 2 - 2, BOARD_HEIGHT - 4, &g_data.tetrominoes);
-                g_state.next[0].type = g_state.next[1].type;
-                g_state.next[1].type = g_state.next[2].type;
-                g_state.next[2].type = GetNextTetrominoFromBag(g_state.bag, &g_state.bagIndex);
+                state->current = InitTetromino(state->next[0].type, 0, BOARD_WIDTH / 2 - 2, BOARD_HEIGHT - 4, &data->tetrominoes);
+                state->next[0].type = state->next[1].type;
+                state->next[1].type = state->next[2].type;
+                state->next[2].type = GetNextTetrominoFromBag(state->bag, &state->bagIndex);
 
-                if (!IsTetrominoPosValid(&g_state.board, &g_state.current)) {
-                    if (g_state.score > g_state.highScore) {
-                        g_state.highScore = g_state.score;
+                if (!IsTetrominoPosValid(&state->board, &state->current)) {
+                    if (state->score > g_globalState.highScore) {
+                        g_globalState.highScore = state->score;
 
-                        save_data data = ReadSaveData(SAVE_DATA_PATH);
-                        data.highScore = g_state.highScore;
-                        WriteSaveData(SAVE_DATA_PATH, &data);
+                        save_data saveData = ReadSaveData(SAVE_DATA_PATH);
+                        saveData.highScore = g_globalState.highScore;
+                        WriteSaveData(SAVE_DATA_PATH, &saveData);
                     }
 
                     CloseScene1();
                     InitScene2();
-                    g_state.currentScene = &Scene2;
+                    g_globalState.currentScene = &Scene2;
                     return;
                 }
 
-                g_state.timerAutoMoveDelay = 0.0f;
-                g_state.timerLockDelay = 0.0f;
-                g_state.didUseHoldBox = false;
+                state->timerAutoMoveDelay = 0.0f;
+                state->timerLockDelay = 0.0f;
+                state->didUseHoldBox = false;
             }
         }
         else {
-            g_state.timerLockDelay = 0.0f;
+            state->timerLockDelay = 0.0f;
 
             if (didSoftDrop) {
-                g_state.score += SCORE_SOFT_DROP * g_state.level;
-                PlaySound(&g_data.sfxSoftDrop, false, SFX_SOFT_DROP, g_state.audioChannels, AUDIO_CHANNEL_COUNT);
+                state->score += SCORE_SOFT_DROP * state->level;
+                PlaySound(&data->sfxSoftDrop, false, SFX_SOFT_DROP, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
             }
         }
     }
 
-    tetromino_t ghost = g_state.current;
-    while (IsTetrominoPosValid(&g_state.board, &ghost)) {
+    tetromino_t ghost = state->current;
+    while (IsTetrominoPosValid(&state->board, &ghost)) {
         --ghost.y;
     }
     ++ghost.y;
 
-    Assert(g_data.background.width = graphicsBuffer->width);
-    DrawBitmapStupid(graphicsBuffer, &g_data.background, 0, 0);
+    Assert(data->background.width = graphicsBuffer->width);
+    DrawBitmapStupid(graphicsBuffer, &data->background, 0, 0);
 
-    DrawBoard(graphicsBuffer, &g_state.board, g_data.tetrominoes);
+    DrawBoard(graphicsBuffer, &state->board, data->tetrominoes);
 
-    DrawTetrominoInBoard(graphicsBuffer, &g_state.board, &g_state.current, &g_data.tetrominoes[g_state.current.type], 255);
+    DrawTetrominoInBoard(graphicsBuffer, &state->board, &state->current, &data->tetrominoes[state->current.type], 255);
 
-    DrawTetrominoInBoard(graphicsBuffer, &g_state.board, &ghost, &g_data.tetrominoes[ghost.type], 64); // <-- Feedback :)
+    DrawTetrominoInBoard(graphicsBuffer, &state->board, &ghost, &data->tetrominoes[ghost.type], 64); // <-- Feedback :)
 
     // Could be replaced by DrawBitmapStupidWithOpacity for the sake of performance
     // The same goes for the rest of the calls to DrawBitmap that doesn't require scaling
-    DrawBitmap(graphicsBuffer, &g_data.tetrominoesUI[g_state.next[0].type], g_state.next[0].x, g_state.next[0].y, 90, 255);
-    DrawBitmap(graphicsBuffer, &g_data.tetrominoesUI[g_state.next[1].type], g_state.next[1].x, g_state.next[1].y, 90, 255);
-    DrawBitmap(graphicsBuffer, &g_data.tetrominoesUI[g_state.next[2].type], g_state.next[2].x, g_state.next[2].y, 90, 255);
+    DrawBitmap(graphicsBuffer, &data->tetrominoesUI[state->next[0].type], state->next[0].x, state->next[0].y, 90, 255);
+    DrawBitmap(graphicsBuffer, &data->tetrominoesUI[state->next[1].type], state->next[1].x, state->next[1].y, 90, 255);
+    DrawBitmap(graphicsBuffer, &data->tetrominoesUI[state->next[2].type], state->next[2].x, state->next[2].y, 90, 255);
 
-    DrawBitmap(graphicsBuffer, &g_data.tetrominoesUI[g_state.hold.type], g_state.hold.x, g_state.hold.y, 90, g_state.didUseHoldBox ? 128 : 255);
+    DrawBitmap(graphicsBuffer, &data->tetrominoesUI[state->hold.type], state->hold.x, state->hold.y, 90, state->didUseHoldBox ? 128 : 255);
 
-    DrawNumber(graphicsBuffer, &g_data.font, g_state.level, 578, 322, 3, true);
-    DrawNumber(graphicsBuffer, &g_data.font, g_state.score, 578, 232, 3, true);
-    DrawNumber(graphicsBuffer, &g_data.font, g_state.lines, 578, 142, 3, true);
+    DrawNumber(graphicsBuffer, &g_globalData.font, state->level, 578, 322, 3, true);
+    DrawNumber(graphicsBuffer, &g_globalData.font, state->score, 578, 232, 3, true);
+    DrawNumber(graphicsBuffer, &g_globalData.font, state->lines, 578, 142, 3, true);
 
-    DrawNumber(graphicsBuffer, &g_data.font, g_state.highScore, 578, 457, 3, true);
-
-    UpdateButtonState(&g_state.buttonPause, keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
-
-    if (g_state.buttonPause.state == button_state_pressed) {
-        InitScene3();
-        g_state.currentScene = &Scene3;
-    }
+    DrawNumber(graphicsBuffer, &g_globalData.font, g_globalState.highScore, 578, 457, 3, true);
 
     u32 buttonColour = 0;
-    switch (g_state.buttonPause.state) {
+    switch (state->buttonPause.state) {
         case button_state_idle: {
             buttonColour = 0xFF0000;
         } break;
@@ -777,29 +773,53 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
             buttonColour = 0xFFFFFF;
         } break;
     }
-    DrawRectangle(graphicsBuffer, g_state.buttonPause.x, g_state.buttonPause.y, g_state.buttonPause.width, g_state.buttonPause.height, buttonColour);
+    DrawRectangle(graphicsBuffer, state->buttonPause.x, state->buttonPause.y, state->buttonPause.width, state->buttonPause.height, buttonColour);
 
-    DrawText(graphicsBuffer, &g_data.font, "Hello, World", 10, 50, 3, false);
-    DrawNumber(graphicsBuffer, &g_data.font, -12345, 10, 80, 3, false);
+    DrawText(graphicsBuffer, &g_globalData.font, "Hello, World", 10, 50, 3, false);
+    DrawNumber(graphicsBuffer, &g_globalData.font, -12345, 10, 80, 3, false);
 
     extern u32 DEBUG_microsecondsElapsed;
-    DrawNumber(graphicsBuffer, &g_data.font, DEBUG_microsecondsElapsed, 10, 4, 3, false);
+    DrawNumber(graphicsBuffer, &g_globalData.font, DEBUG_microsecondsElapsed, 10, 4, 3, false);
 }
 
 // SCENE 2 //
 
+typedef struct scene2_state {
+    button_t buttonStart;
+    button_t buttonOptions;
+    button_t buttonQuit;
+    i32 currentButtonIndex;
+} scene2_state;
+
+typedef struct scene2_data {
+    bitmap_buffer background;
+
+    bitmap_buffer buttonStart;
+    bitmap_buffer buttonOptions;
+    bitmap_buffer buttonQuit;
+
+    sound_buffer backgroundMusic;
+} scene2_data;
+
 static void InitScene2(void) {
-    g_data.background = LoadBMP("assets/graphics/tetris_background_title2.bmp");
+    g_sceneState = EngineAllocate(sizeof(scene2_state));
+    g_sceneData  = EngineAllocate(sizeof(scene2_data));
 
-    g_data.buttonStartGame = LoadBMP("assets/graphics/start_game_button.bmp");
-    g_data.buttonOptions = LoadBMP("assets/graphics/options_button.bmp");
-    g_data.buttonQuitGame = LoadBMP("assets/graphics/quit_game_button.bmp");
+    scene2_state* state = g_sceneState;
+    scene2_data*  data  = g_sceneData;
 
-    g_data.backgroundMusic = LoadWAV("assets/audio/Tetris3.wav");
 
-    PlaySound(&g_data.backgroundMusic, true, BACKGROUND_MUSIC, g_state.audioChannels, AUDIO_CHANNEL_COUNT);
+    data->background = LoadBMP("assets/graphics/tetris_background_title2.bmp");
 
-    g_state.buttonStart = (button_t){
+    data->buttonStart   = LoadBMP("assets/graphics/start_game_button.bmp");
+    data->buttonOptions = LoadBMP("assets/graphics/options_button.bmp");
+    data->buttonQuit    = LoadBMP("assets/graphics/quit_game_button.bmp");
+
+    data->backgroundMusic = LoadWAV("assets/audio/Tetris3.wav");
+
+    PlaySound(&data->backgroundMusic, true, BACKGROUND_MUSIC, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
+
+    state->buttonStart = (button_t){
         .x      = 830,
         .y      = 370,
         .width  = 260,
@@ -807,7 +827,7 @@ static void InitScene2(void) {
         .state  = button_state_idle
     };
 
-    g_state.buttonOptions = (button_t){
+    state->buttonOptions = (button_t){
         .x      = 860,
         .y      = 275,
         .width  = 200,
@@ -815,7 +835,7 @@ static void InitScene2(void) {
         .state  = button_state_idle
     };
 
-    g_state.buttonQuit = (button_t){
+    state->buttonQuit = (button_t){
         .x      = 840,
         .y      = 175,
         .width  = 240,
@@ -823,71 +843,85 @@ static void InitScene2(void) {
         .state  = button_state_idle
     };
 
-    g_state.currentButtonIndex = 0;
+    state->currentButtonIndex = 0;
 }
 
 static void CloseScene2(void) {
-    EngineFree(g_data.background.memory);
+    scene2_state* state = g_sceneState;
+    scene2_data*  data  = g_sceneData;
 
-    EngineFree(g_data.buttonStartGame.memory);
-    EngineFree(g_data.buttonOptions.memory);
-    EngineFree(g_data.buttonQuitGame.memory);
 
-    EngineFree(g_data.backgroundMusic.samples);
+    EngineFree(data->background.memory);
 
-    StopAllSounds(g_state.audioChannels, AUDIO_CHANNEL_COUNT);
+    EngineFree(data->buttonStart.memory);
+    EngineFree(data->buttonOptions.memory);
+    EngineFree(data->buttonQuit.memory);
+
+    EngineFree(data->backgroundMusic.samples);
+
+    StopAllSounds(g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
+
+
+    EngineFree(g_sceneState);
+    EngineFree(g_sceneData);
+    g_sceneState = 0;
+    g_sceneData  = 0;
 }
 
 // REFACTOR
 // Also, ignore mouse cursor if keyboard was last used
 static void Scene2(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
-    UpdateButtonState(&g_state.buttonStart,   keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
-    UpdateButtonState(&g_state.buttonOptions, keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
-    UpdateButtonState(&g_state.buttonQuit,    keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
+    scene2_state* state = g_sceneState;
+    scene2_data*  data  = g_sceneData;
 
-    if (PRESSED(keyboardState->up) && g_state.currentButtonIndex != 0) {
-        --g_state.currentButtonIndex;
-    }
-    else if (PRESSED(keyboardState->down) && g_state.currentButtonIndex != 2) {
-        ++g_state.currentButtonIndex;
-    }
 
-    if (g_state.buttonStart.state == button_state_hover) {
-        g_state.currentButtonIndex = 0;
+    UpdateButtonState(&state->buttonStart,   keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
+    UpdateButtonState(&state->buttonOptions, keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
+    UpdateButtonState(&state->buttonQuit,    keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
+
+    if (PRESSED(keyboardState->up) && state->currentButtonIndex != 0) {
+        --state->currentButtonIndex;
     }
-    else if (g_state.buttonOptions.state == button_state_hover) {
-        g_state.currentButtonIndex = 1;
-    }
-    else if (g_state.buttonQuit.state == button_state_hover) {
-        g_state.currentButtonIndex = 2;
+    else if (PRESSED(keyboardState->down) && state->currentButtonIndex != 2) {
+        ++state->currentButtonIndex;
     }
 
-    if (g_state.buttonStart.state == button_state_pressed   || (g_state.currentButtonIndex == 0 && PRESSED(keyboardState->enter))) {
+    if (state->buttonStart.state == button_state_hover) {
+        state->currentButtonIndex = 0;
+    }
+    else if (state->buttonOptions.state == button_state_hover) {
+        state->currentButtonIndex = 1;
+    }
+    else if (state->buttonQuit.state == button_state_hover) {
+        state->currentButtonIndex = 2;
+    }
+
+    if (state->buttonStart.state == button_state_pressed   || (state->currentButtonIndex == 0 && PRESSED(keyboardState->enter))) {
         CloseScene2();
         InitScene1();
-        g_state.currentScene = &Scene1;
+        g_globalState.currentScene = &Scene1;
         return;
     }
 
-    if (g_state.buttonOptions.state == button_state_pressed || (g_state.currentButtonIndex == 1 && PRESSED(keyboardState->enter))) {
+    if (state->buttonOptions.state == button_state_pressed || (state->currentButtonIndex == 1 && PRESSED(keyboardState->enter))) {
         CloseScene2();
         InitScene4();
-        g_state.currentScene = &Scene4;
+        g_globalState.currentScene = &Scene4;
         return;
     }
 
-    if (g_state.buttonQuit.state == button_state_pressed    || (g_state.currentButtonIndex == 2 && PRESSED(keyboardState->enter))) {
+    if (state->buttonQuit.state == button_state_pressed    || (state->currentButtonIndex == 2 && PRESSED(keyboardState->enter))) {
         EngineClose();
         return;
     }
 
-    DrawBitmapStupid(graphicsBuffer, &g_data.background, 0, 0);
+    DrawBitmapStupid(graphicsBuffer, &data->background, 0, 0);
 
-    DrawBitmapStupidWithOpacity(graphicsBuffer, &g_data.buttonStartGame, 852, 400, 255);
-    DrawBitmapStupidWithOpacity(graphicsBuffer, &g_data.buttonOptions, 884, 300, 255);
-    DrawBitmapStupidWithOpacity(graphicsBuffer, &g_data.buttonQuitGame, 858, 200, 255);
+    DrawBitmapStupidWithOpacity(graphicsBuffer, &data->buttonStart,   852, 400, 255);
+    DrawBitmapStupidWithOpacity(graphicsBuffer, &data->buttonOptions, 884, 300, 255);
+    DrawBitmapStupidWithOpacity(graphicsBuffer, &data->buttonQuit,    858, 200, 255);
 
-    switch (g_state.currentButtonIndex) {
+    switch (state->currentButtonIndex) {
         case 0: {
             DrawRectangle(graphicsBuffer, 808, 409, 12, 12, 0xFFFFFF);
             DrawRectangle(graphicsBuffer, 820, 397, 12, 36, 0xFFFFFF);
@@ -914,86 +948,90 @@ static void Scene2(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
 
 // SCENE 3 //
 
+typedef struct scene3_state {
+    scene1_state* scene1;
+} scene3_state;
+
+typedef struct scene3_data {
+    scene1_data* scene1;
+
+    audio_channel tempAudioChannels[AUDIO_CHANNEL_COUNT];
+
+    bitmap_buffer tetrominoes[8];
+    bitmap_buffer tetrominoesUI[8];
+
+    bitmap_buffer background;
+} scene3_data;
+
 static void InitScene3(void) {
-    EngineFree(g_data.tetrominoes[1].memory);
-    EngineFree(g_data.tetrominoes[2].memory);
-    EngineFree(g_data.tetrominoes[3].memory);
-    EngineFree(g_data.tetrominoes[4].memory);
-    EngineFree(g_data.tetrominoes[5].memory);
-    EngineFree(g_data.tetrominoes[6].memory);
-    EngineFree(g_data.tetrominoes[7].memory);
-    g_data.tetrominoes[1] = LoadBMP("assets/graphics/tetrominoes/dim/tetromino_i_dim.bmp");
-    g_data.tetrominoes[2] = LoadBMP("assets/graphics/tetrominoes/dim/tetromino_o_dim.bmp");
-    g_data.tetrominoes[3] = LoadBMP("assets/graphics/tetrominoes/dim/tetromino_t_dim.bmp");
-    g_data.tetrominoes[4] = LoadBMP("assets/graphics/tetrominoes/dim/tetromino_s_dim.bmp");
-    g_data.tetrominoes[5] = LoadBMP("assets/graphics/tetrominoes/dim/tetromino_z_dim.bmp");
-    g_data.tetrominoes[6] = LoadBMP("assets/graphics/tetrominoes/dim/tetromino_j_dim.bmp");
-    g_data.tetrominoes[7] = LoadBMP("assets/graphics/tetrominoes/dim/tetromino_l_dim.bmp");
+    g_sceneState = EngineAllocate(sizeof(scene3_state));
+    g_sceneData  = EngineAllocate(sizeof(scene3_data));
 
-    EngineFree(g_data.tetrominoesUI[1].memory);
-    EngineFree(g_data.tetrominoesUI[2].memory);
-    EngineFree(g_data.tetrominoesUI[3].memory);
-    EngineFree(g_data.tetrominoesUI[4].memory);
-    EngineFree(g_data.tetrominoesUI[5].memory);
-    EngineFree(g_data.tetrominoesUI[6].memory);
-    EngineFree(g_data.tetrominoesUI[7].memory);
-    g_data.tetrominoesUI[1] = LoadBMP("assets/graphics/tetrominoes_ui/dim/tetromino_i_ui_dim.bmp");
-    g_data.tetrominoesUI[2] = LoadBMP("assets/graphics/tetrominoes_ui/dim/tetromino_o_ui_dim.bmp");
-    g_data.tetrominoesUI[3] = LoadBMP("assets/graphics/tetrominoes_ui/dim/tetromino_t_ui_dim.bmp");
-    g_data.tetrominoesUI[4] = LoadBMP("assets/graphics/tetrominoes_ui/dim/tetromino_s_ui_dim.bmp");
-    g_data.tetrominoesUI[5] = LoadBMP("assets/graphics/tetrominoes_ui/dim/tetromino_z_ui_dim.bmp");
-    g_data.tetrominoesUI[6] = LoadBMP("assets/graphics/tetrominoes_ui/dim/tetromino_j_ui_dim.bmp");
-    g_data.tetrominoesUI[7] = LoadBMP("assets/graphics/tetrominoes_ui/dim/tetromino_l_ui_dim.bmp");
+    scene3_state* state = g_sceneState;
+    scene3_data*  data  = g_sceneData;
 
-    EngineFree(g_data.background.memory);
-    g_data.background = LoadBMP("assets/graphics/background_dim.bmp");
 
-    CopyAudioChannels(g_state.tempAudioChannels, g_state.audioChannels, AUDIO_CHANNEL_COUNT);
-    StopAllSounds(g_state.audioChannels, AUDIO_CHANNEL_COUNT);
+    data->tetrominoes[1] = LoadBMP("assets/graphics/tetrominoes/dim/tetromino_i_dim.bmp");
+    data->tetrominoes[2] = LoadBMP("assets/graphics/tetrominoes/dim/tetromino_o_dim.bmp");
+    data->tetrominoes[3] = LoadBMP("assets/graphics/tetrominoes/dim/tetromino_t_dim.bmp");
+    data->tetrominoes[4] = LoadBMP("assets/graphics/tetrominoes/dim/tetromino_s_dim.bmp");
+    data->tetrominoes[5] = LoadBMP("assets/graphics/tetrominoes/dim/tetromino_z_dim.bmp");
+    data->tetrominoes[6] = LoadBMP("assets/graphics/tetrominoes/dim/tetromino_j_dim.bmp");
+    data->tetrominoes[7] = LoadBMP("assets/graphics/tetrominoes/dim/tetromino_l_dim.bmp");
+
+    data->tetrominoesUI[1] = LoadBMP("assets/graphics/tetrominoes_ui/dim/tetromino_i_ui_dim.bmp");
+    data->tetrominoesUI[2] = LoadBMP("assets/graphics/tetrominoes_ui/dim/tetromino_o_ui_dim.bmp");
+    data->tetrominoesUI[3] = LoadBMP("assets/graphics/tetrominoes_ui/dim/tetromino_t_ui_dim.bmp");
+    data->tetrominoesUI[4] = LoadBMP("assets/graphics/tetrominoes_ui/dim/tetromino_s_ui_dim.bmp");
+    data->tetrominoesUI[5] = LoadBMP("assets/graphics/tetrominoes_ui/dim/tetromino_z_ui_dim.bmp");
+    data->tetrominoesUI[6] = LoadBMP("assets/graphics/tetrominoes_ui/dim/tetromino_j_ui_dim.bmp");
+    data->tetrominoesUI[7] = LoadBMP("assets/graphics/tetrominoes_ui/dim/tetromino_l_ui_dim.bmp");
+
+    data->background = LoadBMP("assets/graphics/background_dim.bmp");
+
+    CopyAudioChannels(data->tempAudioChannels, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
+    StopAllSounds(g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
 }
 
 static void CloseScene3(void) {
-    EngineFree(g_data.tetrominoes[1].memory);
-    EngineFree(g_data.tetrominoes[2].memory);
-    EngineFree(g_data.tetrominoes[3].memory);
-    EngineFree(g_data.tetrominoes[4].memory);
-    EngineFree(g_data.tetrominoes[5].memory);
-    EngineFree(g_data.tetrominoes[6].memory);
-    EngineFree(g_data.tetrominoes[7].memory);
-    g_data.tetrominoes[1] = LoadBMP("assets/graphics/tetrominoes/tetromino_i.bmp");
-    g_data.tetrominoes[2] = LoadBMP("assets/graphics/tetrominoes/tetromino_o.bmp");
-    g_data.tetrominoes[3] = LoadBMP("assets/graphics/tetrominoes/tetromino_t.bmp");
-    g_data.tetrominoes[4] = LoadBMP("assets/graphics/tetrominoes/tetromino_s.bmp");
-    g_data.tetrominoes[5] = LoadBMP("assets/graphics/tetrominoes/tetromino_z.bmp");
-    g_data.tetrominoes[6] = LoadBMP("assets/graphics/tetrominoes/tetromino_j.bmp");
-    g_data.tetrominoes[7] = LoadBMP("assets/graphics/tetrominoes/tetromino_l.bmp");
+    scene3_state* state = g_sceneState;
+    scene3_data*  data  = g_sceneData;
 
-    EngineFree(g_data.tetrominoesUI[1].memory);
-    EngineFree(g_data.tetrominoesUI[2].memory);
-    EngineFree(g_data.tetrominoesUI[3].memory);
-    EngineFree(g_data.tetrominoesUI[4].memory);
-    EngineFree(g_data.tetrominoesUI[5].memory);
-    EngineFree(g_data.tetrominoesUI[6].memory);
-    EngineFree(g_data.tetrominoesUI[7].memory);
-    g_data.tetrominoesUI[1] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_I_UI.bmp");
-    g_data.tetrominoesUI[2] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_O_UI.bmp");
-    g_data.tetrominoesUI[3] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_T_UI.bmp");
-    g_data.tetrominoesUI[4] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_S_UI.bmp");
-    g_data.tetrominoesUI[5] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_Z_UI.bmp");
-    g_data.tetrominoesUI[6] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_J_UI.bmp");
-    g_data.tetrominoesUI[7] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_L_UI.bmp");
 
-    EngineFree(g_data.background.memory);
-    g_data.background = LoadBMP("assets/graphics/background3.bmp");
+    EngineFree(data->tetrominoes[1].memory);
+    EngineFree(data->tetrominoes[2].memory);
+    EngineFree(data->tetrominoes[3].memory);
+    EngineFree(data->tetrominoes[4].memory);
+    EngineFree(data->tetrominoes[5].memory);
+    EngineFree(data->tetrominoes[6].memory);
+    EngineFree(data->tetrominoes[7].memory);
 
-    CopyAudioChannels(g_state.audioChannels, g_state.tempAudioChannels, AUDIO_CHANNEL_COUNT);
+    EngineFree(data->tetrominoesUI[1].memory);
+    EngineFree(data->tetrominoesUI[2].memory);
+    EngineFree(data->tetrominoesUI[3].memory);
+    EngineFree(data->tetrominoesUI[4].memory);
+    EngineFree(data->tetrominoesUI[5].memory);
+    EngineFree(data->tetrominoesUI[6].memory);
+    EngineFree(data->tetrominoesUI[7].memory);
+
+    EngineFree(data->background.memory);
+
+
+    EngineFree(g_sceneState);
+    EngineFree(g_sceneData);
+    g_sceneState = 0;
+    g_sceneData  = 0;
 }
 
 static void Scene3(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
-    UpdateButtonState(&g_state.buttonPause, keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
+    scene3_state* state = g_sceneState;
+    scene3_data*  data  = g_sceneData;
+
+
+    UpdateButtonState(&state->scene1->buttonPause, keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
 
     u32 buttonColour = 0;
-    switch (g_state.buttonPause.state) {
+    switch (state->scene1->buttonPause.state) {
         case button_state_idle: {
             buttonColour = 0xFF0000;
         } break;
@@ -1011,84 +1049,123 @@ static void Scene3(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
         } break;
     }
 
-    tetromino_t ghost = g_state.current;
-    while (IsTetrominoPosValid(&g_state.board, &ghost)) {
+    tetromino_t ghost = state->scene1->current;
+    while (IsTetrominoPosValid(&state->scene1->board, &ghost)) {
         --ghost.y;
     }
     ++ghost.y;
 
-    DrawBitmapStupid(graphicsBuffer, &g_data.background, 0, 0);
+    DrawBitmapStupid(graphicsBuffer, &data->background, 0, 0);
 
-    DrawBoard(graphicsBuffer, &g_state.board, g_data.tetrominoes);
+    DrawBoard(graphicsBuffer, &state->scene1->board, data->tetrominoes);
 
-    DrawTetrominoInBoard(graphicsBuffer, &g_state.board, &g_state.current, &g_data.tetrominoes[g_state.current.type], 255);
+    DrawTetrominoInBoard(graphicsBuffer, &state->scene1->board, &state->scene1->current, &data->tetrominoes[state->scene1->current.type], 255);
 
-    DrawTetrominoInBoard(graphicsBuffer, &g_state.board, &ghost, &g_data.tetrominoes[ghost.type], 64);
+    DrawTetrominoInBoard(graphicsBuffer, &state->scene1->board, &ghost, &data->tetrominoes[ghost.type], 64);
 
-    DrawBitmap(graphicsBuffer, &g_data.tetrominoesUI[g_state.next[0].type], g_state.next[0].x, g_state.next[0].y, 90, 255);
-    DrawBitmap(graphicsBuffer, &g_data.tetrominoesUI[g_state.next[1].type], g_state.next[1].x, g_state.next[1].y, 90, 255);
-    DrawBitmap(graphicsBuffer, &g_data.tetrominoesUI[g_state.next[2].type], g_state.next[2].x, g_state.next[2].y, 90, 255);
+    DrawBitmap(graphicsBuffer, &data->tetrominoesUI[state->scene1->next[0].type], state->scene1->next[0].x, state->scene1->next[0].y, 90, 255);
+    DrawBitmap(graphicsBuffer, &data->tetrominoesUI[state->scene1->next[1].type], state->scene1->next[1].x, state->scene1->next[1].y, 90, 255);
+    DrawBitmap(graphicsBuffer, &data->tetrominoesUI[state->scene1->next[2].type], state->scene1->next[2].x, state->scene1->next[2].y, 90, 255);
 
-    DrawBitmap(graphicsBuffer, &g_data.tetrominoesUI[g_state.hold.type], g_state.hold.x, g_state.hold.y, 90, g_state.didUseHoldBox ? 128 : 255);
+    DrawBitmap(graphicsBuffer, &data->tetrominoesUI[state->scene1->hold.type], state->scene1->hold.x, state->scene1->hold.y, 90, state->scene1->didUseHoldBox ? 128 : 255);
 
-    DrawNumber(graphicsBuffer, &g_data.font, g_state.level, 578, 322, 3, true);
-    DrawNumber(graphicsBuffer, &g_data.font, g_state.score, 578, 232, 3, true);
-    DrawNumber(graphicsBuffer, &g_data.font, g_state.lines, 578, 142, 3, true);
+    DrawNumber(graphicsBuffer, &g_globalData.font, state->scene1->level, 578, 322, 3, true);
+    DrawNumber(graphicsBuffer, &g_globalData.font, state->scene1->score, 578, 232, 3, true);
+    DrawNumber(graphicsBuffer, &g_globalData.font, state->scene1->lines, 578, 142, 3, true);
 
-    DrawNumber(graphicsBuffer, &g_data.font, g_state.highScore, 578, 457, 3, true);
+    DrawNumber(graphicsBuffer, &g_globalData.font, g_globalState.highScore, 578, 457, 3, true);
 
-    DrawRectangle(graphicsBuffer, g_state.buttonPause.x, g_state.buttonPause.y, g_state.buttonPause.width, g_state.buttonPause.height, buttonColour);
+    DrawRectangle(graphicsBuffer, state->scene1->buttonPause.x, state->scene1->buttonPause.y, state->scene1->buttonPause.width, state->scene1->buttonPause.height, buttonColour);
 
-    DrawText(graphicsBuffer, &g_data.font, "Paused", 960, 540, 3, true);
+    DrawText(graphicsBuffer, &g_globalData.font, "Paused", 960, 540, 3, true);
 
-    if (PRESSED(keyboardState->esc) || g_state.buttonPause.state == button_state_pressed) {
+    // Assumes scene 1 was never closed
+    if (PRESSED(keyboardState->esc) || state->scene1->buttonPause.state == button_state_pressed) {
+        scene1_state* tempState = state->scene1;
+        scene1_data* tempData = data->scene1;
+
+        CopyAudioChannels(g_globalState.audioChannels, data->tempAudioChannels, AUDIO_CHANNEL_COUNT);
+
         CloseScene3();
-        g_state.currentScene = &Scene1;
+        g_globalState.currentScene = &Scene1;
+
+        g_sceneState = tempState;
+        g_sceneData  = tempData;
+
         return;
     }
 }
 
 // Scene 4 //
 
+typedef struct scene4_state {
+    int unused;
+} scene4_state;
+
+typedef struct scene4_data {
+    bitmap_buffer background;
+} scene4_data;
+
 static void InitScene4(void) {
-    g_data.background = LoadBMP("assets/graphics/background_options.bmp");
+    g_sceneState = EngineAllocate(sizeof(scene4_state));
+    g_sceneData  = EngineAllocate(sizeof(scene4_data));
+
+    scene4_state* state = g_sceneState;
+    scene4_data*  data  = g_sceneData;
+
+
+    data->background = LoadBMP("assets/graphics/background_options.bmp");
 }
 
 static void CloseScene4(void) {
-    EngineFree(g_data.background.memory);
+    scene4_state* state = g_sceneState;
+    scene4_data*  data  = g_sceneData;
 
-    save_data data = ReadSaveData(SAVE_DATA_PATH);
-    data.audioVolume = g_state.audioVolume;
-    WriteSaveData(SAVE_DATA_PATH, &data);
+
+    EngineFree(data->background.memory);
+
+    save_data saveData = ReadSaveData(SAVE_DATA_PATH);
+    saveData.audioVolume = g_globalState.audioVolume;
+    WriteSaveData(SAVE_DATA_PATH, &saveData);
+
+
+    EngineFree(g_sceneState);
+    EngineFree(g_sceneData);
+    g_sceneState = 0;
+    g_sceneData  = 0;
 }
 
 static void Scene4(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
-    DrawBitmapStupid(graphicsBuffer, &g_data.background, 0, 0);
+    scene4_state* state = g_sceneState;
+    scene4_data*  data  = g_sceneData;
 
-    g_state.audioVolume += (PRESSED(keyboardState->right) - PRESSED(keyboardState->left)) * 0.1f;
-    g_state.audioVolume = Clamp(g_state.audioVolume, 0.0f, 3.0f);
 
-    DrawNumber(graphicsBuffer, &g_data.font, 10 * g_state.audioVolume, 960, 540, 3, true);
+    DrawBitmapStupid(graphicsBuffer, &data->background, 0, 0);
+
+    g_globalState.audioVolume += (PRESSED(keyboardState->right) - PRESSED(keyboardState->left)) * 0.1f;
+    g_globalState.audioVolume = Clamp(g_globalState.audioVolume, 0.0f, 3.0f);
+
+    DrawNumber(graphicsBuffer, &g_globalData.font, 10 * g_globalState.audioVolume, 960, 540, 3, true);
 
     if (PRESSED(keyboardState->mouseLeft) || PRESSED(keyboardState->enter)) {
         CloseScene4();
         InitScene2();
-        g_state.currentScene = &Scene2;
+        g_globalState.currentScene = &Scene2;
         return;
     }
 }
 
 
 void OnStartup(void) {
-    g_data.font = InitFont("assets/graphics/letters_sprite_sheet2.bmp", 13, 5, "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.-");
+    g_globalData.font = InitFont("assets/graphics/letters_sprite_sheet2.bmp", 13, 5, "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.-");
 
     save_data data = ReadSaveData(SAVE_DATA_PATH);
-    g_state.highScore = data.highScore;
-    g_state.audioVolume = data.audioVolume;
+    g_globalState.highScore   = data.highScore;
+    g_globalState.audioVolume = data.audioVolume;
 
 
     InitScene2();
-    g_state.currentScene = &Scene2;
+    g_globalState.currentScene = &Scene2;
 }
 
 void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
@@ -1096,6 +1173,6 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
         EngineToggleFullscreen();
     }
 
-    (*g_state.currentScene)(graphicsBuffer, soundBuffer, keyboardState, deltaTime);
-    ProcessSound(soundBuffer, g_state.audioChannels, AUDIO_CHANNEL_COUNT, g_state.audioVolume);
+    (*g_globalState.currentScene)(graphicsBuffer, soundBuffer, keyboardState, deltaTime);
+    ProcessSound(soundBuffer, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT, g_globalState.audioVolume);
 }
