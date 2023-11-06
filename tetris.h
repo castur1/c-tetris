@@ -33,8 +33,13 @@ typedef struct keyboard_state {
         };
         keyboard_key_state mouseButtons[2];
     };
+    // Is there a better way to do this?
     i32 mouseX;
     i32 mouseY;
+    i32 mouseLastX;
+    i32 mouseLastY;
+    b32 didMouseMove;
+    b32 isMouseVisible;
 
     union {
         struct {

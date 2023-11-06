@@ -26,7 +26,7 @@
 #define SCORE_SINGLE    40
 #define SCORE_DOUBLE    100
 #define SCORE_TRIPLE    300
-#define SCORE_QUADRUPLE 1200
+#define SCORE_TETRIS    1200
 #define SCORE_SOFT_DROP 1
 #define SCORE_HARD_DROP 2
 
@@ -447,6 +447,7 @@ static void InitScene1(void) {
     data->sfxLevelUp   = LoadWAV("assets/audio/sfx6.wav");
     data->sfxSoftDrop  = LoadWAV("assets/audio/sfx1.wav");
 
+    StopAllSounds(g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
     PlaySound(&data->backgroundMusic, true, BACKGROUND_MUSIC, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
 
     RandomInit();
@@ -530,9 +531,9 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
         InitScene3();
         g_globalState.currentScene = &Scene3;
 
-        // This is so scuffed lol. Would this whole thing even work on another computer?
-        *(u32**)g_sceneState = state;
-        *(u32**)g_sceneData  = data;
+        // This is so scuffed lol. Would this thing even work on another computer?
+        *(scene1_state**)g_sceneState = state;
+        *(scene1_data**)g_sceneData   = data;
 
         return;
     }
@@ -636,7 +637,7 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     }
 
     state->timerFall += deltaTime;
-    if (state->timerFall >= gravityInSeconds || didHardDrop || state->timerLockDelay >= 0.001f) {
+    if (state->timerFall >= gravityInSeconds || didHardDrop || state->timerLockDelay >= 0.0001f) {
         state->timerFall = 0.0f;
 
         --state->current.y;
@@ -661,7 +662,7 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
                         state->score += SCORE_TRIPLE * state->level;
                     } break;
                     case 4: {
-                        state->score += SCORE_QUADRUPLE * state->level;
+                        state->score += SCORE_TETRIS * state->level;
                     } break;
                 }
 
@@ -817,6 +818,7 @@ static void InitScene2(void) {
 
     data->backgroundMusic = LoadWAV("assets/audio/Tetris3.wav");
 
+    StopAllSounds(g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
     PlaySound(&data->backgroundMusic, true, BACKGROUND_MUSIC, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
 
     state->buttonStart = (button_t){
@@ -859,8 +861,6 @@ static void CloseScene2(void) {
 
     EngineFree(data->backgroundMusic.samples);
 
-    StopAllSounds(g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
-
 
     EngineFree(g_sceneState);
     EngineFree(g_sceneData);
@@ -868,23 +868,18 @@ static void CloseScene2(void) {
     g_sceneData  = 0;
 }
 
-// REFACTOR
-// Also, ignore mouse cursor if keyboard was last used
 static void Scene2(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
     scene2_state* state = g_sceneState;
     scene2_data*  data  = g_sceneData;
 
 
+    if (keyboardState->didMouseMove) {
+        keyboardState->isMouseVisible = true;
+    }
+
     UpdateButtonState(&state->buttonStart,   keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
     UpdateButtonState(&state->buttonOptions, keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
     UpdateButtonState(&state->buttonQuit,    keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
-
-    if (PRESSED(keyboardState->up) && state->currentButtonIndex != 0) {
-        --state->currentButtonIndex;
-    }
-    else if (PRESSED(keyboardState->down) && state->currentButtonIndex != 2) {
-        ++state->currentButtonIndex;
-    }
 
     if (state->buttonStart.state == button_state_hover) {
         state->currentButtonIndex = 0;
@@ -896,7 +891,17 @@ static void Scene2(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
         state->currentButtonIndex = 2;
     }
 
-    if (state->buttonStart.state == button_state_pressed   || (state->currentButtonIndex == 0 && PRESSED(keyboardState->enter))) {
+    if (PRESSED(keyboardState->up) && state->currentButtonIndex != 0) {
+        --state->currentButtonIndex;
+        keyboardState->isMouseVisible = false;
+    }
+    else if (PRESSED(keyboardState->down) && state->currentButtonIndex != 2) {
+        ++state->currentButtonIndex;
+        keyboardState->isMouseVisible = false;
+    }
+
+    if (state->buttonStart.state == button_state_pressed || (state->currentButtonIndex == 0 && PRESSED(keyboardState->enter))) {
+        keyboardState->isMouseVisible = true;
         CloseScene2();
         InitScene1();
         g_globalState.currentScene = &Scene1;
@@ -904,13 +909,14 @@ static void Scene2(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     }
 
     if (state->buttonOptions.state == button_state_pressed || (state->currentButtonIndex == 1 && PRESSED(keyboardState->enter))) {
+        keyboardState->isMouseVisible = true;
         CloseScene2();
         InitScene4();
         g_globalState.currentScene = &Scene4;
         return;
     }
 
-    if (state->buttonQuit.state == button_state_pressed    || (state->currentButtonIndex == 2 && PRESSED(keyboardState->enter))) {
+    if (state->buttonQuit.state == button_state_pressed || (state->currentButtonIndex == 2 && PRESSED(keyboardState->enter))) {
         EngineClose();
         return;
     }
@@ -1115,6 +1121,8 @@ static void InitScene4(void) {
 
 
     data->background = LoadBMP("assets/graphics/background_options.bmp");
+
+    StopAllSounds(g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
 }
 
 static void CloseScene4(void) {

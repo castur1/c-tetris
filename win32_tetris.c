@@ -570,6 +570,7 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
     soundBytesPerFrame = secondsPerFrame * SOUND_SAMPLES_PER_SECOND * SOUND_BYTES_PER_SAMPLE;
 
     keyboard_state keyboardState = { 0 };
+    keyboardState.isMouseVisible = true;
 
     InitBitmap(&g_bitmapBuffer, BITMAP_WIDTH, BITMAP_HEIGHT);
 
@@ -581,7 +582,43 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
 
         ProcessPendingMessages(g_window, &g_bitmapBuffer, &keyboardState);
 
-        GetCursorPosition(g_window, &g_bitmapBuffer, &keyboardState.mouseX, &keyboardState.mouseY);
+        CURSORINFO cursorInfo = { .cbSize = sizeof(CURSORINFO) };
+        GetCursorInfo(&cursorInfo);
+        b32 isMouseVisible = cursorInfo.flags & CURSOR_SHOWING;
+
+        keyboardState.didMouseMove = false;
+        if (keyboardState.isMouseVisible != isMouseVisible) {
+            ShowCursor(keyboardState.isMouseVisible);
+            keyboardState.mouseLastX = keyboardState.mouseX;
+            keyboardState.mouseLastY = keyboardState.mouseY;
+            keyboardState.mouseX = -1;
+            keyboardState.mouseY = -1;
+        }
+        else {
+            i32 mouseX, mouseY;
+            GetCursorPosition(g_window, &g_bitmapBuffer, &mouseX, &mouseY);
+
+            if (keyboardState.isMouseVisible) {
+                if (mouseX != keyboardState.mouseX || mouseY != keyboardState.mouseY) {
+                    keyboardState.didMouseMove = true;
+                    keyboardState.mouseLastX = keyboardState.mouseX;
+                    keyboardState.mouseLastY = keyboardState.mouseY;
+                    keyboardState.mouseX = mouseX;
+                    keyboardState.mouseY = mouseY;
+                }
+            }
+            else {
+                if (mouseX != keyboardState.mouseLastX || mouseY != keyboardState.mouseLastY) {
+                    keyboardState.didMouseMove = true;
+                    keyboardState.mouseLastX = mouseX;
+                    keyboardState.mouseLastY = mouseY;
+                }
+            }
+        }
+
+        if (keyboardState.isMouseVisible) {
+            GetCursorPosition(g_window, &g_bitmapBuffer, &keyboardState.mouseX, &keyboardState.mouseY);
+        }
 
         DWORD byteToLock = 0;
         DWORD bytesToWrite = 0;
