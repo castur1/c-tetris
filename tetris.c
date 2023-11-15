@@ -777,7 +777,7 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     DrawRectangle(graphicsBuffer, state->buttonPause.x, state->buttonPause.y, state->buttonPause.width, state->buttonPause.height, buttonColour);
 
     DrawText(graphicsBuffer, &g_globalData.font, "Hello, World", 10, 50, 3, false);
-    DrawNumber(graphicsBuffer, &g_globalData.font, -12345, 10, 80, 3, false);
+    DrawNumber(graphicsBuffer, &g_globalData.font, -123456789, 10, 80, 3, false);
 
     extern u32 DEBUG_microsecondsElapsed;
     DrawNumber(graphicsBuffer, &g_globalData.font, DEBUG_microsecondsElapsed, 10, 4, 3, false);
@@ -1105,7 +1105,7 @@ static void Scene3(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
 // Scene 4 //
 
 typedef struct scene4_state {
-    int unused;
+    i32 audioVolume;
 } scene4_state;
 
 typedef struct scene4_data {
@@ -1119,6 +1119,8 @@ static void InitScene4(void) {
     scene4_state* state = g_sceneState;
     scene4_data*  data  = g_sceneData;
 
+
+    state->audioVolume = g_globalState.audioVolume * 10;
 
     data->background = LoadBMP("assets/graphics/background_options.bmp");
 
@@ -1150,8 +1152,9 @@ static void Scene4(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
 
     DrawBitmapStupid(graphicsBuffer, &data->background, 0, 0);
 
-    g_globalState.audioVolume += (PRESSED(keyboardState->right) - PRESSED(keyboardState->left)) * 0.1f;
-    g_globalState.audioVolume = Clamp(g_globalState.audioVolume, 0.0f, 3.0f);
+    state->audioVolume += PRESSED(keyboardState->right) - PRESSED(keyboardState->left);
+    state->audioVolume = Clamp(state->audioVolume, 0, 20);
+    g_globalState.audioVolume = state->audioVolume / 10.0f;
 
     DrawNumber(graphicsBuffer, &g_globalData.font, 10 * g_globalState.audioVolume, 960, 540, 3, true);
 

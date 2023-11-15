@@ -389,7 +389,7 @@ static void UpdateKeyboardKey(keyboard_key_state* keyState, b32 isDown) {
     }
 }
 
-ProcessPendingMessages(HWND window, win32_bitmap* bitmapBuffer, keyboard_state* keyboardState) {
+static void ProcessPendingMessages(HWND window, win32_bitmap* bitmapBuffer, keyboard_state* keyboardState) {
     for (i32 i = 0; i < ArraySize(keyboardState->keys); ++i) {
         keyboardState->keys[i].didChangeState = false;
     }
