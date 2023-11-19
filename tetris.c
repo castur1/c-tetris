@@ -399,6 +399,8 @@ typedef struct scene1_data {
 
     bitmap_buffer background;
 
+    bitmap_buffer buttonPauseUnpaused;
+
     sound_buffer backgroundMusic;
     sound_buffer sfxMove;
     sound_buffer sfxRotate;
@@ -434,6 +436,8 @@ static void InitScene1(void) {
     data->tetrominoesUI[7] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_L_UI.bmp");
 
     data->background = LoadBMP("assets/graphics/background3.bmp");
+
+    data->buttonPauseUnpaused = LoadBMP("assets/button_pause_unpaused.bmp");
 
     // Continue working on this (or redo it idk)
     data->backgroundMusic = LoadWAV("assets/audio/Tetris3.wav");
@@ -472,8 +476,8 @@ static void InitScene1(void) {
     state->buttonPause = (button_t){
         .x      = 1770,
         .y      = 50,
-        .width  = 100,
-        .height = 100,
+        .width  = 80,
+        .height = 80,
         .state  = button_state_idle
     };
 }
@@ -500,6 +504,8 @@ static void CloseScene1(void) {
     EngineFree(data->tetrominoesUI[7].memory);
 
     EngineFree(data->background.memory);
+
+    EngineFree(data->buttonPauseUnpaused.memory);
 
     EngineFree(data->backgroundMusic.samples);
     EngineFree(data->sfxMove.samples);
@@ -756,25 +762,8 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
 
     DrawNumber(graphicsBuffer, &g_globalData.font, g_globalState.highScore, 578, 457, 3, true);
 
-    u32 buttonColour = 0;
-    switch (state->buttonPause.state) {
-        case button_state_idle: {
-            buttonColour = 0xFF0000;
-        } break;
-        case button_state_hover: {
-            buttonColour = 0x00FF00;
-        } break;
-        case button_state_pressed: {
-            buttonColour = 0x000000;
-        } break;
-        case button_state_held: {
-            buttonColour = 0x0000FF;
-        } break;
-        case button_state_released: {
-            buttonColour = 0xFFFFFF;
-        } break;
-    }
-    DrawRectangle(graphicsBuffer, state->buttonPause.x, state->buttonPause.y, state->buttonPause.width, state->buttonPause.height, buttonColour);
+    // Redo graphic
+    DrawBitmap(graphicsBuffer, &data->buttonPauseUnpaused, state->buttonPause.x, state->buttonPause.y, state->buttonPause.width, 255);
 
     DrawText(graphicsBuffer, &g_globalData.font, "Hello, World", 10, 50, 3, false);
     DrawNumber(graphicsBuffer, &g_globalData.font, -123456789, 10, 80, 3, false);
@@ -927,6 +916,7 @@ static void Scene2(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     DrawBitmapStupidWithOpacity(graphicsBuffer, &data->buttonOptions, 884, 300, 255);
     DrawBitmapStupidWithOpacity(graphicsBuffer, &data->buttonQuit,    858, 200, 255);
 
+    // This can be simplified
     switch (state->currentButtonIndex) {
         case 0: {
             DrawRectangle(graphicsBuffer, 808, 409, 12, 12, 0xFFFFFF);
@@ -967,6 +957,8 @@ typedef struct scene3_data {
     bitmap_buffer tetrominoesUI[8];
 
     bitmap_buffer background;
+
+    bitmap_buffer buttonPausePaused;
 } scene3_data;
 
 static void InitScene3(void) {
@@ -995,6 +987,8 @@ static void InitScene3(void) {
 
     data->background = LoadBMP("assets/graphics/background_dim.bmp");
 
+    data->buttonPausePaused = LoadBMP("assets/button_pause_paused.bmp");
+
     CopyAudioChannels(data->tempAudioChannels, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
     StopAllSounds(g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
 }
@@ -1022,6 +1016,8 @@ static void CloseScene3(void) {
 
     EngineFree(data->background.memory);
 
+    EngineFree(data->buttonPausePaused.memory);
+
 
     EngineFree(g_sceneState);
     EngineFree(g_sceneData);
@@ -1035,25 +1031,6 @@ static void Scene3(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
 
 
     UpdateButtonState(&state->scene1->buttonPause, keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
-
-    u32 buttonColour = 0;
-    switch (state->scene1->buttonPause.state) {
-        case button_state_idle: {
-            buttonColour = 0xFF0000;
-        } break;
-        case button_state_hover: {
-            buttonColour = 0x00FF00;
-        } break;
-        case button_state_pressed: {
-            buttonColour = 0x000000;
-        } break;
-        case button_state_held: {
-            buttonColour = 0x0000FF;
-        } break;
-        case button_state_released: {
-            buttonColour = 0xFFFFFF;
-        } break;
-    }
 
     tetromino_t ghost = state->scene1->current;
     while (IsTetrominoPosValid(&state->scene1->board, &ghost)) {
@@ -1081,7 +1058,7 @@ static void Scene3(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
 
     DrawNumber(graphicsBuffer, &g_globalData.font, g_globalState.highScore, 578, 457, 3, true);
 
-    DrawRectangle(graphicsBuffer, state->scene1->buttonPause.x, state->scene1->buttonPause.y, state->scene1->buttonPause.width, state->scene1->buttonPause.height, buttonColour);
+    DrawBitmap(graphicsBuffer, &data->buttonPausePaused, state->scene1->buttonPause.x, state->scene1->buttonPause.y, state->scene1->buttonPause.width, 255);
 
     DrawText(graphicsBuffer, &g_globalData.font, "Paused", 960, 540, 3, true);
 
@@ -1179,6 +1156,7 @@ void OnStartup(void) {
     g_globalState.currentScene = &Scene2;
 }
 
+// Rename graphicsBuffer to backBuffer please
 void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
     if (PRESSED(keyboardState->f)) {
         EngineToggleFullscreen();
