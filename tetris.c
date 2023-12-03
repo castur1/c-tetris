@@ -789,6 +789,8 @@ typedef struct scene2_data {
     bitmap_buffer buttonQuit;
 
     sound_buffer backgroundMusic;
+
+    sound_buffer sfxButtonSwitch;
 } scene2_data;
 
 static void InitScene2(void) {
@@ -806,6 +808,8 @@ static void InitScene2(void) {
     data->buttonQuit    = LoadBMP("assets/graphics/quit_game_button.bmp");
 
     data->backgroundMusic = LoadWAV("assets/audio/Tetris3.wav");
+
+    data->sfxButtonSwitch = LoadWAV("assets/audio/sfx1.wav");
 
     StopAllSounds(g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
     PlaySound(&data->backgroundMusic, true, BACKGROUND_MUSIC, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
@@ -850,6 +854,8 @@ static void CloseScene2(void) {
 
     EngineFree(data->backgroundMusic.samples);
 
+    EngineFree(data->sfxButtonSwitch.samples);
+
 
     EngineFree(g_sceneState);
     EngineFree(g_sceneData);
@@ -862,13 +868,11 @@ static void Scene2(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     scene2_data*  data  = g_sceneData;
 
 
-    if (keyboardState->didMouseMove) {
-        keyboardState->isMouseVisible = true;
-    }
-
     UpdateButtonState(&state->buttonStart,   keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
     UpdateButtonState(&state->buttonOptions, keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
     UpdateButtonState(&state->buttonQuit,    keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
+
+    i32 initialButtonIndex = state->currentButtonIndex;
 
     if (state->buttonStart.state == button_state_hover) {
         state->currentButtonIndex = 0;
@@ -882,15 +886,12 @@ static void Scene2(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
 
     if (PRESSED(keyboardState->up) && state->currentButtonIndex != 0) {
         --state->currentButtonIndex;
-        keyboardState->isMouseVisible = false;
     }
     else if (PRESSED(keyboardState->down) && state->currentButtonIndex != 2) {
         ++state->currentButtonIndex;
-        keyboardState->isMouseVisible = false;
     }
 
     if (state->buttonStart.state == button_state_pressed || (state->currentButtonIndex == 0 && PRESSED(keyboardState->enter))) {
-        keyboardState->isMouseVisible = true;
         CloseScene2();
         InitScene1();
         g_globalState.currentScene = &Scene1;
@@ -898,7 +899,6 @@ static void Scene2(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     }
 
     if (state->buttonOptions.state == button_state_pressed || (state->currentButtonIndex == 1 && PRESSED(keyboardState->enter))) {
-        keyboardState->isMouseVisible = true;
         CloseScene2();
         InitScene4();
         g_globalState.currentScene = &Scene4;
@@ -910,36 +910,42 @@ static void Scene2(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
         return;
     }
 
+    if (state->currentButtonIndex != initialButtonIndex) {
+        PlaySound(&data->sfxButtonSwitch, false, SFX_MOVE, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
+    }
+
     DrawBitmapStupid(graphicsBuffer, &data->background, 0, 0);
 
     DrawBitmapStupidWithOpacity(graphicsBuffer, &data->buttonStart,   852, 400, 255);
     DrawBitmapStupidWithOpacity(graphicsBuffer, &data->buttonOptions, 884, 300, 255);
     DrawBitmapStupidWithOpacity(graphicsBuffer, &data->buttonQuit,    858, 200, 255);
 
-    // This can be simplified
+    i32 markerXLeft = 0;
+    i32 markerXRight = 0;
+    i32 markerY = 0;
+    const i32 markerSize = 12;
+    const u32 markerColour = 0xFFFFFF;
     switch (state->currentButtonIndex) {
         case 0: {
-            DrawRectangle(graphicsBuffer, 808, 409, 12, 12, 0xFFFFFF);
-            DrawRectangle(graphicsBuffer, 820, 397, 12, 36, 0xFFFFFF);
-
-            DrawRectangle(graphicsBuffer, 1100, 409, 12, 12, 0xFFFFFF);
-            DrawRectangle(graphicsBuffer, 1088, 397, 12, 36, 0xFFFFFF);
+            markerXLeft = 808;
+            markerXRight = 1088;
+            markerY = 397;
         } break;
         case 1: {
-            DrawRectangle(graphicsBuffer, 840, 314, 12, 12, 0xFFFFFF);
-            DrawRectangle(graphicsBuffer, 852, 302, 12, 36, 0xFFFFFF);
-
-            DrawRectangle(graphicsBuffer, 1068, 314, 12, 12, 0xFFFFFF);
-            DrawRectangle(graphicsBuffer, 1056, 302, 12, 36, 0xFFFFFF);
+            markerXLeft = 840;
+            markerXRight = 1056;
+            markerY = 302;
         } break;
         case 2: {
-            DrawRectangle(graphicsBuffer, 814, 212, 12, 12, 0xFFFFFF);
-            DrawRectangle(graphicsBuffer, 826, 200, 12, 36, 0xFFFFFF);
-
-            DrawRectangle(graphicsBuffer, 1094, 212, 12, 12, 0xFFFFFF);
-            DrawRectangle(graphicsBuffer, 1082, 200, 12, 36, 0xFFFFFF);
+            markerXLeft = 814;
+            markerXRight = 1082;
+            markerY = 200;
         } break;
     }
+    DrawRectangle(graphicsBuffer, markerXLeft, markerY + markerSize, markerSize, markerSize, markerColour);
+    DrawRectangle(graphicsBuffer, markerXLeft + markerSize, markerY, markerSize, 3 * markerSize, markerColour);
+    DrawRectangle(graphicsBuffer, markerXRight + markerSize, markerY + markerSize, markerSize, markerSize, markerColour);
+    DrawRectangle(graphicsBuffer, markerXRight, markerY, markerSize, 3 * markerSize, markerColour);
 }
 
 // SCENE 3 //
@@ -1160,6 +1166,17 @@ void OnStartup(void) {
 void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
     if (PRESSED(keyboardState->f)) {
         EngineToggleFullscreen();
+    }
+
+    if (keyboardState->didMouseMove) {
+        keyboardState->isMouseVisible = true;
+    }
+
+    for (i32 i = 0; i < ArraySize(keyboardState->keys); ++i) {
+        if (PRESSED(keyboardState->keys[i])) {
+            keyboardState->isMouseVisible = false;
+            break;
+        }
     }
 
     (*g_globalState.currentScene)(graphicsBuffer, soundBuffer, keyboardState, deltaTime);
