@@ -14,7 +14,7 @@
 #define SOFT_DROP       0.033f
 #define LOCK_DELAY      0.5f
 
-#define BACKGROUND_MUSIC 0.6f
+#define BACKGROUND_MUSIC 0.75f
 #define SFX_MOVE         1.0f
 #define SFX_ROTATE       1.5f
 #define SFX_LOCK         2.0f
@@ -104,22 +104,23 @@ typedef struct button_t {
 
 typedef void (*scene_pointer)(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime);
 
+typedef struct save_data {
+    i32 highScore;
+    f32 masterVolume;
+    f32 soundVolume;
+    f32 musicVolume;
+} save_data;
+
 typedef struct global_state {
     scene_pointer currentScene;
     audio_channel audioChannels[AUDIO_CHANNEL_COUNT];
 
-    f32 audioVolume;
-    i32 highScore;
+    save_data saveData;
 } global_state;
 
 typedef struct global_data {
     font_t font;
 } global_data;
-
-typedef struct save_data {
-    i32 highScore;
-    f32 audioVolume;
-} save_data;
 
 
 static global_state g_globalState;
@@ -307,7 +308,9 @@ static f32 GetCurrentGravityInSeconds(i32 level) {
 static void ResetSaveData(save_data* data) {
     *data = (save_data){
         .highScore = 0,
-        .audioVolume = 1.0f
+        .masterVolume = 1.0f,
+        .soundVolume = 1.0f,
+        .musicVolume = 1.0f
     };
 }
 
@@ -371,7 +374,7 @@ static void UpdateButtonState(button_t* button, i32 mouseX, i32 mouseY, keyboard
 }
 
 
-// SCENE 1 //
+// SCENE 1: Gameplay //
 
 typedef struct scene1_state {
     f32 timerFall;
@@ -437,7 +440,7 @@ static void InitScene1(void) {
 
     data->background = LoadBMP("assets/graphics/background3.bmp");
 
-    data->buttonPauseUnpaused = LoadBMP("assets/button_pause_unpaused.bmp");
+    data->buttonPauseUnpaused = LoadBMP("assets/graphics/button_pause_unpaused.bmp");
 
     // Continue working on this (or redo it idk)
     data->backgroundMusic = LoadWAV("assets/audio/Tetris3.wav");
@@ -452,7 +455,7 @@ static void InitScene1(void) {
     data->sfxSoftDrop  = LoadWAV("assets/audio/sfx1.wav");
 
     StopAllSounds(g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
-    PlaySound(&data->backgroundMusic, true, BACKGROUND_MUSIC, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
+    PlaySound(&data->backgroundMusic, true, BACKGROUND_MUSIC * g_globalState.saveData.musicVolume, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
 
     RandomInit();
 
@@ -471,7 +474,7 @@ static void InitScene1(void) {
     state->lines = 0;
 
     save_data saveData = ReadSaveData(SAVE_DATA_PATH);
-    g_globalState.highScore = saveData.highScore;
+    g_globalState.saveData.highScore = saveData.highScore;
 
     state->buttonPause = (button_t){
         .x      = 1770,
@@ -556,7 +559,7 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
                 --state->current.x;
             }
             else {
-                PlaySound(&data->sfxMove, false, SFX_MOVE, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
+                PlaySound(&data->sfxMove, false, SFX_MOVE * g_globalState.saveData.soundVolume, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
             }
         }
     }
@@ -572,7 +575,7 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
                 ++state->current.x;
             }
             else {
-                PlaySound(&data->sfxMove, false, SFX_MOVE, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
+                PlaySound(&data->sfxMove, false, SFX_MOVE * g_globalState.saveData.soundVolume, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
             }
         }
     }
@@ -602,7 +605,7 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
         }
 
         if (didRotate) {
-            PlaySound(&data->sfxRotate, false, SFX_ROTATE, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
+            PlaySound(&data->sfxRotate, false, SFX_ROTATE * g_globalState.saveData.soundVolume, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
         }
     }
 
@@ -621,7 +624,7 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
         }
         state->hold.type = currentType;
 
-        PlaySound(&data->sfxHold, false, SFX_HOLD, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
+        PlaySound(&data->sfxHold, false, SFX_HOLD * g_globalState.saveData.soundVolume, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
     }
 
     b32 didSoftDrop = false;
@@ -675,25 +678,25 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
 
                 if (state->lines >= state->level * 10) {
                     ++state->level;
-                    PlaySound(&data->sfxLevelUp, false, SFX_LEVEL_UP, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
+                    PlaySound(&data->sfxLevelUp, false, SFX_LEVEL_UP * g_globalState.saveData.soundVolume, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
                 }
                 else {
                     switch (lineClearCount) {
                         case 1: {
-                            PlaySound(&data->sfxLineClear, false, SFX_LINE_CLEAR, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
+                            PlaySound(&data->sfxLineClear, false, SFX_LINE_CLEAR * g_globalState.saveData.soundVolume, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
                         } break;
                         case 2: {
-                            PlaySound(&data->sfxLineClear, false, SFX_LINE_CLEAR, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
+                            PlaySound(&data->sfxLineClear, false, SFX_LINE_CLEAR * g_globalState.saveData.soundVolume, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
                         } break;
                         case 3: {
-                            PlaySound(&data->sfxLineClear, false, SFX_LINE_CLEAR, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
+                            PlaySound(&data->sfxLineClear, false, SFX_LINE_CLEAR * g_globalState.saveData.soundVolume, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
                         } break;
                         case 4: {
-                            PlaySound(&data->sfxLineClear, false, SFX_LINE_CLEAR, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
+                            PlaySound(&data->sfxLineClear, false, SFX_LINE_CLEAR * g_globalState.saveData.soundVolume, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
                         } break;
 
                         default: {
-                            PlaySound(&data->sfxLock, false, SFX_LOCK, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
+                            PlaySound(&data->sfxLock, false, SFX_LOCK * g_globalState.saveData.soundVolume, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
                         } break;
                     }
                 }
@@ -704,11 +707,11 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
                 state->next[2].type = GetNextTetrominoFromBag(state->bag, &state->bagIndex);
 
                 if (!IsTetrominoPosValid(&state->board, &state->current)) {
-                    if (state->score > g_globalState.highScore) {
-                        g_globalState.highScore = state->score;
+                    if (state->score > g_globalState.saveData.highScore) {
+                        g_globalState.saveData.highScore = state->score;
 
                         save_data saveData = ReadSaveData(SAVE_DATA_PATH);
-                        saveData.highScore = g_globalState.highScore;
+                        saveData.highScore = g_globalState.saveData.highScore;
                         WriteSaveData(SAVE_DATA_PATH, &saveData);
                     }
 
@@ -728,7 +731,7 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
 
             if (didSoftDrop) {
                 state->score += SCORE_SOFT_DROP * state->level;
-                PlaySound(&data->sfxSoftDrop, false, SFX_SOFT_DROP, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
+                PlaySound(&data->sfxSoftDrop, false, SFX_SOFT_DROP * g_globalState.saveData.soundVolume, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
             }
         }
     }
@@ -760,7 +763,7 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     DrawNumber(graphicsBuffer, &g_globalData.font, state->score, 578, 232, 3, true);
     DrawNumber(graphicsBuffer, &g_globalData.font, state->lines, 578, 142, 3, true);
 
-    DrawNumber(graphicsBuffer, &g_globalData.font, g_globalState.highScore, 578, 457, 3, true);
+    DrawNumber(graphicsBuffer, &g_globalData.font, g_globalState.saveData.highScore, 578, 457, 3, true);
 
     // Redo graphic
     DrawBitmap(graphicsBuffer, &data->buttonPauseUnpaused, state->buttonPause.x, state->buttonPause.y, state->buttonPause.width, 255);
@@ -772,7 +775,7 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     DrawNumber(graphicsBuffer, &g_globalData.font, DEBUG_microsecondsElapsed, 10, 4, 3, false);
 }
 
-// SCENE 2 //
+// SCENE 2: Main menu //
 
 typedef struct scene2_state {
     button_t buttonStart;
@@ -812,7 +815,7 @@ static void InitScene2(void) {
     data->sfxButtonSwitch = LoadWAV("assets/audio/sfx1.wav");
 
     StopAllSounds(g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
-    PlaySound(&data->backgroundMusic, true, BACKGROUND_MUSIC, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
+    PlaySound(&data->backgroundMusic, true, BACKGROUND_MUSIC * g_globalState.saveData.musicVolume, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
 
     state->buttonStart = (button_t){
         .x      = 830,
@@ -911,7 +914,7 @@ static void Scene2(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     }
 
     if (state->currentButtonIndex != initialButtonIndex) {
-        PlaySound(&data->sfxButtonSwitch, false, SFX_MOVE, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
+        PlaySound(&data->sfxButtonSwitch, false, SFX_MOVE * g_globalState.saveData.soundVolume, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
     }
 
     DrawBitmapStupid(graphicsBuffer, &data->background, 0, 0);
@@ -920,6 +923,7 @@ static void Scene2(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     DrawBitmapStupidWithOpacity(graphicsBuffer, &data->buttonOptions, 884, 300, 255);
     DrawBitmapStupidWithOpacity(graphicsBuffer, &data->buttonQuit,    858, 200, 255);
 
+    // Hardcoding values :)
     i32 markerXLeft = 0;
     i32 markerXRight = 0;
     i32 markerY = 0;
@@ -948,7 +952,7 @@ static void Scene2(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     DrawRectangle(graphicsBuffer, markerXRight, markerY, markerSize, 3 * markerSize, markerColour);
 }
 
-// SCENE 3 //
+// SCENE 3: Paused //
 
 typedef struct scene3_state {
     scene1_state* scene1;
@@ -993,7 +997,7 @@ static void InitScene3(void) {
 
     data->background = LoadBMP("assets/graphics/background_dim.bmp");
 
-    data->buttonPausePaused = LoadBMP("assets/button_pause_paused.bmp");
+    data->buttonPausePaused = LoadBMP("assets/graphics/button_pause_paused.bmp");
 
     CopyAudioChannels(data->tempAudioChannels, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
     StopAllSounds(g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
@@ -1062,7 +1066,7 @@ static void Scene3(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     DrawNumber(graphicsBuffer, &g_globalData.font, state->scene1->score, 578, 232, 3, true);
     DrawNumber(graphicsBuffer, &g_globalData.font, state->scene1->lines, 578, 142, 3, true);
 
-    DrawNumber(graphicsBuffer, &g_globalData.font, g_globalState.highScore, 578, 457, 3, true);
+    DrawNumber(graphicsBuffer, &g_globalData.font, g_globalState.saveData.highScore, 578, 457, 3, true);
 
     DrawBitmap(graphicsBuffer, &data->buttonPausePaused, state->scene1->buttonPause.x, state->scene1->buttonPause.y, state->scene1->buttonPause.width, 255);
 
@@ -1085,14 +1089,32 @@ static void Scene3(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     }
 }
 
-// Scene 4 //
+// Scene 4: Options //
 
 typedef struct scene4_state {
-    i32 audioVolume;
+    i32 masterVolume;
+    i32 soundVolume;
+    i32 musicVolume;
+
+    button_t sliderMasterVolume;
+    button_t sliderSoundVolume;
+    button_t sliderMusicVolume;
+    button_t buttonResetHighscore;
+    button_t buttonBack;
+
+    i32 currentSelectedIndex;
 } scene4_state;
 
 typedef struct scene4_data {
     bitmap_buffer background;
+
+    bitmap_buffer buttonBack;
+    bitmap_buffer buttonResetHighcore;
+    bitmap_buffer labelMasterVolume;
+    bitmap_buffer labelSoundVolume;
+    bitmap_buffer labelMusicVolume;
+
+    sound_buffer backgroundMusic;
 } scene4_data;
 
 static void InitScene4(void) {
@@ -1103,11 +1125,67 @@ static void InitScene4(void) {
     scene4_data*  data  = g_sceneData;
 
 
-    state->audioVolume = g_globalState.audioVolume * 10;
+    state->masterVolume = g_globalState.saveData.masterVolume * 10;
+    state->soundVolume  = g_globalState.saveData.soundVolume  * 10;
+    state->musicVolume  = g_globalState.saveData.musicVolume  * 10;
+
+    state->sliderMasterVolume = (button_t){
+        .x      = 1090 + 10 * state->masterVolume,
+        .y      = 652,
+        .width  = 20,
+        .height = 20,
+        .state  = button_state_idle
+    };
+
+    state->sliderSoundVolume = (button_t){
+        .x      = 1090 + 10 * state->soundVolume,
+        .y      = 562,
+        .width  = 20,
+        .height = 20,
+        .state  = button_state_idle
+    };
+
+    state->sliderMusicVolume = (button_t){
+        .x      = 1090 + 10 * state->musicVolume,
+        .y      = 472,
+        .width  = 20,
+        .height = 20,
+        .state  = button_state_idle
+    };
+
+    state->buttonResetHighscore = (button_t){
+        .x      = 770,
+        .y      = 225,
+        .width  = 380,
+        .height = 90,
+        .state  = button_state_idle
+    };
+
+    state->buttonBack = (button_t){
+        .x      = 880,
+        .y      = 88,
+        .width  = 160,
+        .height = 90,
+        .state  = button_state_idle
+    };
+
+    state->currentSelectedIndex = 4;
 
     data->background = LoadBMP("assets/graphics/background_options.bmp");
 
+    data->labelMasterVolume = LoadBMP("assets/graphics/master_volume_label.bmp");
+    data->labelSoundVolume  = LoadBMP("assets/graphics/sound_volume_label.bmp");
+    data->labelMusicVolume  = LoadBMP("assets/graphics/music_volume_label.bmp");
+
+    data->buttonResetHighcore = LoadBMP("assets/graphics/reset_highscore_button.bmp");
+
+    data->buttonBack = LoadBMP("assets/graphics/back_button.bmp");
+
+    data->backgroundMusic = LoadWAV("assets/audio/Tetris3.wav");
+
     StopAllSounds(g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
+
+    PlaySound(&data->backgroundMusic, true, BACKGROUND_MUSIC * g_globalState.saveData.musicVolume, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
 }
 
 static void CloseScene4(void) {
@@ -1117,9 +1195,18 @@ static void CloseScene4(void) {
 
     EngineFree(data->background.memory);
 
-    save_data saveData = ReadSaveData(SAVE_DATA_PATH);
-    saveData.audioVolume = g_globalState.audioVolume;
-    WriteSaveData(SAVE_DATA_PATH, &saveData);
+    EngineFree(data->labelMasterVolume.memory);
+    EngineFree(data->labelSoundVolume.memory);
+    EngineFree(data->labelMusicVolume.memory);
+
+    EngineFree(data->buttonResetHighcore.memory);
+
+    EngineFree(data->buttonBack.memory);
+
+    EngineFree(data->backgroundMusic.samples);
+
+
+    WriteSaveData(SAVE_DATA_PATH, &g_globalState.saveData);
 
 
     EngineFree(g_sceneState);
@@ -1132,30 +1219,79 @@ static void Scene4(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     scene4_state* state = g_sceneState;
     scene4_data*  data  = g_sceneData;
 
+    if (state->sliderMasterVolume.state == button_state_held) {
+        state->sliderMasterVolume.x = keyboardState->mouseX - state->sliderMasterVolume.width / 2;
+        state->sliderMasterVolume.x = Clamp(state->sliderMasterVolume.x, 1090, 1090 + 200);
 
-    DrawBitmapStupid(graphicsBuffer, &data->background, 0, 0);
+        state->masterVolume = (state->sliderMasterVolume.x - 1090) / 10;
+        g_globalState.saveData.masterVolume = state->masterVolume / 10.0f;
+    }
+    else if (state->sliderSoundVolume.state == button_state_held) {
+        state->sliderSoundVolume.x = keyboardState->mouseX - state->sliderSoundVolume.width / 2;
+        state->sliderSoundVolume.x = Clamp(state->sliderSoundVolume.x, 1090, 1090 + 200);
 
-    state->audioVolume += PRESSED(keyboardState->right) - PRESSED(keyboardState->left);
-    state->audioVolume = Clamp(state->audioVolume, 0, 20);
-    g_globalState.audioVolume = state->audioVolume / 10.0f;
+        state->soundVolume = (state->sliderSoundVolume.x - 1090) / 10;
+        g_globalState.saveData.soundVolume = state->soundVolume / 10.0f;
+    }
+    else if (state->sliderMusicVolume.state == button_state_held) {
+        state->sliderMusicVolume.x = keyboardState->mouseX - state->sliderMusicVolume.width / 2;
+        state->sliderMusicVolume.x = Clamp(state->sliderMusicVolume.x, 1090, 1090 + 200);
 
-    DrawNumber(graphicsBuffer, &g_globalData.font, 10 * g_globalState.audioVolume, 960, 540, 3, true);
+        state->musicVolume = (state->sliderMusicVolume.x - 1090) / 10;
+        g_globalState.saveData.musicVolume = state->musicVolume / 10.0f;
 
-    if (PRESSED(keyboardState->mouseLeft) || PRESSED(keyboardState->enter)) {
+        g_globalState.audioChannels[0].volume = g_globalState.saveData.musicVolume; // Awful solution. Replace!
+    }
+
+    // Maybe button_t that covers entire label to handle selectedIndex stuff?
+    // Also make the slider continue to follow the mouse as long as it's pressed (stop sliding off)
+    // Add drop shadow to text?
+    // Play music (and sound effects) in the options scene
+    // Full screen button
+
+    UpdateButtonState(&state->sliderMasterVolume, keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
+    UpdateButtonState(&state->sliderSoundVolume, keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
+    UpdateButtonState(&state->sliderMusicVolume, keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
+    UpdateButtonState(&state->buttonResetHighscore, keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
+    UpdateButtonState(&state->buttonBack, keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
+
+    if (state->buttonBack.state == button_state_pressed) {
         CloseScene4();
         InitScene2();
         g_globalState.currentScene = &Scene2;
         return;
     }
+
+    if (state->buttonResetHighscore.state == button_state_pressed) {
+        g_globalState.saveData.highScore = 0;
+    }
+
+    DrawBitmapStupid(graphicsBuffer, &data->background, 0, 0);
+
+    DrawBitmapStupidWithOpacity(graphicsBuffer, &data->labelMasterVolume, 560, 650, 255);
+    DrawBitmapStupidWithOpacity(graphicsBuffer, &data->labelSoundVolume, 560, 560, 255);
+    DrawBitmapStupidWithOpacity(graphicsBuffer, &data->labelMusicVolume, 560, 470, 255);
+
+    DrawBitmapStupidWithOpacity(graphicsBuffer, &data->buttonResetHighcore, 806, 250, 255);
+    DrawBitmapStupidWithOpacity(graphicsBuffer, &data->buttonBack, 914, 120, 255);
+
+    DrawRectangle(graphicsBuffer, 1100, 660, state->sliderMasterVolume.x - 1100, 3, 0xFFFFFF);
+    DrawRectangle(graphicsBuffer, 1100, 570, state->sliderSoundVolume.x  - 1100, 3, 0xFFFFFF);
+    DrawRectangle(graphicsBuffer, 1100, 480, state->sliderMusicVolume.x  - 1100, 3, 0xFFFFFF);
+    DrawRectangle(graphicsBuffer, state->sliderMasterVolume.x, 660, 1300 - state->sliderMasterVolume.x, 3, 0x888888);
+    DrawRectangle(graphicsBuffer, state->sliderSoundVolume.x,  570, 1300 - state->sliderSoundVolume.x,  3, 0x888888);
+    DrawRectangle(graphicsBuffer, state->sliderMusicVolume.x,  480, 1300 - state->sliderMusicVolume.x,  3, 0x888888);
+
+    DrawRectangle(graphicsBuffer, state->sliderMasterVolume.x, state->sliderMasterVolume.y, state->sliderMasterVolume.width, state->sliderMasterVolume.height, 0xFFFFFF);
+    DrawRectangle(graphicsBuffer, state->sliderSoundVolume.x, state->sliderSoundVolume.y, state->sliderSoundVolume.width, state->sliderSoundVolume.height, 0xFFFFFF);
+    DrawRectangle(graphicsBuffer, state->sliderMusicVolume.x, state->sliderMusicVolume.y, state->sliderMusicVolume.width, state->sliderMusicVolume.height, 0xFFFFFF);
 }
 
 
 void OnStartup(void) {
     g_globalData.font = InitFont("assets/graphics/letters_sprite_sheet2.bmp", 13, 5, "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.-");
 
-    save_data data = ReadSaveData(SAVE_DATA_PATH);
-    g_globalState.highScore   = data.highScore;
-    g_globalState.audioVolume = data.audioVolume;
+    g_globalState.saveData = ReadSaveData(SAVE_DATA_PATH);
 
 
     InitScene2();
@@ -1171,7 +1307,6 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
     if (keyboardState->didMouseMove) {
         keyboardState->isMouseVisible = true;
     }
-
     for (i32 i = 0; i < ArraySize(keyboardState->keys); ++i) {
         if (PRESSED(keyboardState->keys[i])) {
             keyboardState->isMouseVisible = false;
@@ -1180,5 +1315,5 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
     }
 
     (*g_globalState.currentScene)(graphicsBuffer, soundBuffer, keyboardState, deltaTime);
-    ProcessSound(soundBuffer, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT, g_globalState.audioVolume);
+    ProcessSound(soundBuffer, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT, g_globalState.saveData.masterVolume);
 }
