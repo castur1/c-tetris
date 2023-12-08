@@ -1099,6 +1099,9 @@ typedef struct scene4_state {
     button_t sliderMasterVolume;
     button_t sliderSoundVolume;
     button_t sliderMusicVolume;
+    button_t labelMasterVolume;
+    button_t labelSoundVolume;
+    button_t labelMusicVolume;
     button_t buttonResetHighscore;
     button_t buttonBack;
 
@@ -1115,6 +1118,8 @@ typedef struct scene4_data {
     bitmap_buffer labelMusicVolume;
 
     sound_buffer backgroundMusic;
+
+    sound_buffer sfxButtonSwitch;
 } scene4_data;
 
 static void InitScene4(void) {
@@ -1153,6 +1158,30 @@ static void InitScene4(void) {
         .state  = button_state_idle
     };
 
+    state->labelMasterVolume = (button_t){
+        .x      = 520,
+        .y      = 625,
+        .width  = 820,
+        .height = 75,
+        .state  = button_state_idle
+    };
+
+    state->labelSoundVolume = (button_t){
+        .x      = 520,
+        .y      = 535,
+        .width  = 820,
+        .height = 75,
+        .state  = button_state_idle
+    };
+
+    state->labelMusicVolume = (button_t){
+        .x      = 520,
+        .y      = 445,
+        .width  = 820,
+        .height = 75,
+        .state  = button_state_idle
+    };
+
     state->buttonResetHighscore = (button_t){
         .x      = 770,
         .y      = 225,
@@ -1183,6 +1212,8 @@ static void InitScene4(void) {
 
     data->backgroundMusic = LoadWAV("assets/audio/Tetris3.wav");
 
+    data->sfxButtonSwitch = LoadWAV("assets/audio/sfx1.wav");
+
     StopAllSounds(g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
 
     PlaySound(&data->backgroundMusic, true, BACKGROUND_MUSIC * g_globalState.saveData.musicVolume, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
@@ -1205,6 +1236,8 @@ static void CloseScene4(void) {
 
     EngineFree(data->backgroundMusic.samples);
 
+    EngineFree(data->sfxButtonSwitch.samples);
+
 
     WriteSaveData(SAVE_DATA_PATH, &g_globalState.saveData);
 
@@ -1214,6 +1247,9 @@ static void CloseScene4(void) {
     g_sceneState = 0;
     g_sceneData  = 0;
 }
+
+// Add drop shadow to text?
+// Full screen button
 
 static void Scene4(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
     scene4_state* state = g_sceneState;
@@ -1243,30 +1279,115 @@ static void Scene4(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
         g_globalState.audioChannels[0].volume = g_globalState.saveData.musicVolume; // Awful solution. Replace!
     }
 
-    // Maybe button_t that covers entire label to handle selectedIndex stuff?
-    // Also make the slider continue to follow the mouse as long as it's pressed (stop sliding off)
-    // Add drop shadow to text?
-    // Play music (and sound effects) in the options scene
-    // Full screen button
+    i32 initialButtonIndex = state->currentSelectedIndex;
 
     UpdateButtonState(&state->sliderMasterVolume, keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
     UpdateButtonState(&state->sliderSoundVolume, keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
     UpdateButtonState(&state->sliderMusicVolume, keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
+    UpdateButtonState(&state->labelMasterVolume, keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
+    UpdateButtonState(&state->labelSoundVolume, keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
+    UpdateButtonState(&state->labelMusicVolume, keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
     UpdateButtonState(&state->buttonResetHighscore, keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
     UpdateButtonState(&state->buttonBack, keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
 
-    if (state->buttonBack.state == button_state_pressed) {
+    if (keyboardState->mouseLeft.isDown && !keyboardState->mouseLeft.didChangeState) {
+        if (state->sliderMasterVolume.state == button_state_released) {
+            state->sliderMasterVolume.state = button_state_held;
+        }
+        else if (state->sliderSoundVolume.state == button_state_released) {
+            state->sliderSoundVolume.state = button_state_held;
+        }
+        else if (state->sliderMusicVolume.state == button_state_released) {
+            state->sliderMusicVolume.state = button_state_held;
+        }
+    }
+
+    if (state->labelMasterVolume.state == button_state_hover) {
+        state->currentSelectedIndex = 0;
+    }
+    else if (state->labelSoundVolume.state == button_state_hover) {
+        state->currentSelectedIndex = 1;
+    }
+    else if (state->labelMusicVolume.state == button_state_hover) {
+        state->currentSelectedIndex = 2;
+    }
+    else if (state->buttonResetHighscore.state == button_state_hover) {
+        state->currentSelectedIndex = 3;
+    }
+    else if (state->buttonBack.state == button_state_hover) {
+        state->currentSelectedIndex = 4;
+    }
+
+    if (PRESSED(keyboardState->up) && state->currentSelectedIndex != 0) {
+        --state->currentSelectedIndex;
+    }
+    else if (PRESSED(keyboardState->down) && state->currentSelectedIndex != 4) {
+        ++state->currentSelectedIndex;
+    }
+
+    if (state->buttonResetHighscore.state == button_state_pressed || (state->currentSelectedIndex == 3 && PRESSED(keyboardState->enter))) {
+        g_globalState.saveData.highScore = 0;
+    }
+
+    if (state->buttonBack.state == button_state_pressed || (state->currentSelectedIndex == 4 && PRESSED(keyboardState->enter))) {
         CloseScene4();
         InitScene2();
         g_globalState.currentScene = &Scene2;
         return;
     }
 
-    if (state->buttonResetHighscore.state == button_state_pressed) {
-        g_globalState.saveData.highScore = 0;
+    switch (state->currentSelectedIndex) {
+        case 0: {
+            state->masterVolume += PRESSED(keyboardState->right) - PRESSED(keyboardState->left);
+            state->masterVolume = Clamp(state->masterVolume, 0, 20);
+            g_globalState.saveData.masterVolume = state->masterVolume / 10.0f;
+
+            state->sliderMasterVolume.x = 1090 + 10 * state->masterVolume;
+        } break;
+        case 1: {
+            state->soundVolume += PRESSED(keyboardState->right) - PRESSED(keyboardState->left);
+            state->soundVolume = Clamp(state->soundVolume, 0, 20);
+            g_globalState.saveData.soundVolume = state->soundVolume / 10.0f;
+
+            state->sliderSoundVolume.x = 1090 + 10 * state->soundVolume;
+        } break;
+        case 2: {
+            state->musicVolume += PRESSED(keyboardState->right) - PRESSED(keyboardState->left);
+            state->musicVolume = Clamp(state->musicVolume, 0, 20);
+            g_globalState.saveData.musicVolume = state->musicVolume / 10.0f;
+
+            state->sliderMusicVolume.x = 1090 + 10 * state->musicVolume;
+
+            g_globalState.audioChannels[0].volume = g_globalState.saveData.musicVolume; // Awful solution. Replace!
+        } break;
     }
 
+    if (initialButtonIndex != state->currentSelectedIndex) {
+        PlaySound(&data->sfxButtonSwitch, false, BACKGROUND_MUSIC * g_globalState.saveData.soundVolume, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
+    }
+
+    // Graphics
+
     DrawBitmapStupid(graphicsBuffer, &data->background, 0, 0);
+
+    // TEMP
+    switch (state->currentSelectedIndex) {
+        case 0: {
+            DrawRectangle(graphicsBuffer, state->labelMasterVolume.x, state->labelMasterVolume.y, state->labelMasterVolume.width, state->labelMasterVolume.height, 0xFF0000);
+        } break;
+        case 1: {
+            DrawRectangle(graphicsBuffer, state->labelSoundVolume.x, state->labelSoundVolume.y, state->labelSoundVolume.width, state->labelSoundVolume.height, 0x00FF00);
+        } break;
+        case 2: {
+            DrawRectangle(graphicsBuffer, state->labelMusicVolume.x, state->labelMusicVolume.y, state->labelMusicVolume.width, state->labelMusicVolume.height, 0x0000FF);
+        } break;
+        case 3: {
+            DrawRectangle(graphicsBuffer, state->buttonResetHighscore.x, state->buttonResetHighscore.y, state->buttonResetHighscore.width, state->buttonResetHighscore.height, 0x00FFFF);
+        } break;
+        case 4: {
+            DrawRectangle(graphicsBuffer, state->buttonBack.x, state->buttonBack.y, state->buttonBack.width, state->buttonBack.height, 0xFFFF00);
+        } break;
+    }
 
     DrawBitmapStupidWithOpacity(graphicsBuffer, &data->labelMasterVolume, 560, 650, 255);
     DrawBitmapStupidWithOpacity(graphicsBuffer, &data->labelSoundVolume, 560, 560, 255);
