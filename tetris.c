@@ -442,8 +442,7 @@ static void InitScene1(void) {
 
     data->buttonPauseUnpaused = LoadBMP("assets/graphics/button_pause_unpaused.bmp");
 
-    // Continue working on this (or redo it idk)
-    data->backgroundMusic = LoadWAV("assets/audio/Tetris3.wav");
+    data->backgroundMusic = LoadWAV("assets/audio/tetris_theme.wav");
 
     // Look these over
     data->sfxMove      = LoadWAV("assets/audio/sfx1.wav");
@@ -742,7 +741,6 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     }
     ++ghost.y;
 
-    Assert(data->background.width = graphicsBuffer->width);
     DrawBitmapStupid(graphicsBuffer, &data->background, 0, 0);
 
     DrawBoard(graphicsBuffer, &state->board, data->tetrominoes);
@@ -767,12 +765,6 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
 
     // Redo graphic
     DrawBitmap(graphicsBuffer, &data->buttonPauseUnpaused, state->buttonPause.x, state->buttonPause.y, state->buttonPause.width, 255);
-
-    DrawText(graphicsBuffer, &g_globalData.font, "Hello, World", 10, 50, 3, false);
-    DrawNumber(graphicsBuffer, &g_globalData.font, -123456789, 10, 80, 3, false);
-
-    extern u32 DEBUG_microsecondsElapsed;
-    DrawNumber(graphicsBuffer, &g_globalData.font, DEBUG_microsecondsElapsed, 10, 4, 3, false);
 }
 
 // SCENE 2: Main menu //
@@ -810,7 +802,7 @@ static void InitScene2(void) {
     data->buttonOptions = LoadBMP("assets/graphics/options_button.bmp");
     data->buttonQuit    = LoadBMP("assets/graphics/quit_game_button.bmp");
 
-    data->backgroundMusic = LoadWAV("assets/audio/Tetris3.wav");
+    data->backgroundMusic = LoadWAV("assets/audio/tetris_theme.wav");
 
     data->sfxButtonSwitch = LoadWAV("assets/audio/sfx1.wav");
 
@@ -1210,7 +1202,7 @@ static void InitScene4(void) {
 
     data->buttonBack = LoadBMP("assets/graphics/back_button.bmp");
 
-    data->backgroundMusic = LoadWAV("assets/audio/Tetris3.wav");
+    data->backgroundMusic = LoadWAV("assets/audio/tetris_theme.wav");
 
     data->sfxButtonSwitch = LoadWAV("assets/audio/sfx1.wav");
 
@@ -1250,6 +1242,7 @@ static void CloseScene4(void) {
 
 // Add drop shadow to text?
 // Full screen button
+// Better indicators (like main men scene)
 
 static void Scene4(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
     scene4_state* state = g_sceneState;
@@ -1370,24 +1363,42 @@ static void Scene4(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
 
     DrawBitmapStupid(graphicsBuffer, &data->background, 0, 0);
 
-    // TEMP
+    i32 markerXLeft = 0;
+    i32 markerXRight = 0;
+    i32 markerY = 0;
+    const i32 markerSize = 12;
+    const u32 markerColour = 0xFFFFFF;
     switch (state->currentSelectedIndex) {
         case 0: {
-            DrawRectangle(graphicsBuffer, state->labelMasterVolume.x, state->labelMasterVolume.y, state->labelMasterVolume.width, state->labelMasterVolume.height, 0xFF0000);
+            markerXLeft = 505;
+            markerXRight = 1340;
+            markerY = 645;
         } break;
         case 1: {
-            DrawRectangle(graphicsBuffer, state->labelSoundVolume.x, state->labelSoundVolume.y, state->labelSoundVolume.width, state->labelSoundVolume.height, 0x00FF00);
+            markerXLeft = 505;
+            markerXRight = 1340;
+            markerY = 555;
         } break;
         case 2: {
-            DrawRectangle(graphicsBuffer, state->labelMusicVolume.x, state->labelMusicVolume.y, state->labelMusicVolume.width, state->labelMusicVolume.height, 0x0000FF);
+            markerXLeft = 505;
+            markerXRight = 1340;
+            markerY = 465;
         } break;
         case 3: {
-            DrawRectangle(graphicsBuffer, state->buttonResetHighscore.x, state->buttonResetHighscore.y, state->buttonResetHighscore.width, state->buttonResetHighscore.height, 0x00FFFF);
+            markerXLeft = 755;
+            markerXRight = 1140;
+            markerY = 252;
         } break;
         case 4: {
-            DrawRectangle(graphicsBuffer, state->buttonBack.x, state->buttonBack.y, state->buttonBack.width, state->buttonBack.height, 0xFFFF00);
+            markerXLeft = 865;
+            markerXRight = 1030;
+            markerY = 115;
         } break;
     }
+    DrawRectangle(graphicsBuffer, markerXLeft, markerY + markerSize, markerSize, markerSize, markerColour);
+    DrawRectangle(graphicsBuffer, markerXLeft + markerSize, markerY, markerSize, 3 * markerSize, markerColour);
+    DrawRectangle(graphicsBuffer, markerXRight + markerSize, markerY + markerSize, markerSize, markerSize, markerColour);
+    DrawRectangle(graphicsBuffer, markerXRight, markerY, markerSize, 3 * markerSize, markerColour);
 
     DrawBitmapStupidWithOpacity(graphicsBuffer, &data->labelMasterVolume, 560, 650, 255);
     DrawBitmapStupidWithOpacity(graphicsBuffer, &data->labelSoundVolume, 560, 560, 255);

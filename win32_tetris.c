@@ -499,8 +499,6 @@ static void GetCursorPosition(HWND window, win32_bitmap* bitmap, i32* outX, i32*
     }
 }
 
-u32 DEBUG_microsecondsElapsed;
-
 static LRESULT CALLBACK WndProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
     switch (message) {
         case WM_CLOSE:
@@ -683,12 +681,10 @@ int CALLBACK WinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prevInstance, _
         else {
             secondsForLastFrame = secondsElapsedForFrame;
         }
-
-        f32 debugElapsed = PerformanceCountDiffInSeconds(performanceCountAtStartOfFrame, performanceCountAtEndOfFrame, performanceFrequence);
-        DEBUG_microsecondsElapsed = 1000000 * debugElapsed;
 #if 1
         f32 debugSeconds = PerformanceCountDiffInSeconds(performanceCountAtStartOfFrame, GetCurrentPerformanceCount(), performanceFrequence);
         f32 debugFPS = 1.0f / debugSeconds;
+        f32 debugElapsed = PerformanceCountDiffInSeconds(performanceCountAtStartOfFrame, performanceCountAtEndOfFrame, performanceFrequence);
         char debugBuffer[64];
         sprintf_s(debugBuffer, 64, "%.2f ms/f, %.2f fps, %.2f elapsed\n", 1000.0f * debugSeconds, debugFPS, 1000.0f * debugElapsed);
         OutputDebugStringA(debugBuffer);
