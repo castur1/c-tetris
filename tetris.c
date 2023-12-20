@@ -140,14 +140,17 @@ static void InitScene1(void);
 static void InitScene2(void);
 static void InitScene3(void);
 static void InitScene4(void);
+static void InitScene5(void);
 static void Scene1(bitmap_buffer*, sound_buffer*, keyboard_state*, f32);
 static void Scene2(bitmap_buffer*, sound_buffer*, keyboard_state*, f32);
 static void Scene3(bitmap_buffer*, sound_buffer*, keyboard_state*, f32);
+static void Scene5(bitmap_buffer*, sound_buffer*, keyboard_state*, f32);
 static void Scene4(bitmap_buffer*, sound_buffer*, keyboard_state*, f32);
 static void CloseScene1(void);
 static void CloseScene2(void);
 static void CloseScene3(void);
 static void CloseScene4(void);
+static void CloseScene5(void);
 
 
 static board_t InitBoard(i32 width, i32 height, i32 x, i32 y, i32 tileSize) {
@@ -634,7 +637,7 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     }
 
     b32 didHardDrop = false;
-    if (PRESSED(keyboardState->up)) {
+    if (PRESSED(keyboardState->up) || PRESSED(keyboardState->spacebar)) {
         didHardDrop = true;
         while (IsTetrominoPosValid(&state->board, &state->current)) {
             --state->current.y;
@@ -1417,6 +1420,20 @@ static void Scene4(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     DrawRectangle(graphicsBuffer, state->sliderMasterVolume.x, state->sliderMasterVolume.y, state->sliderMasterVolume.width, state->sliderMasterVolume.height, 0xFFFFFF);
     DrawRectangle(graphicsBuffer, state->sliderSoundVolume.x, state->sliderSoundVolume.y, state->sliderSoundVolume.width, state->sliderSoundVolume.height, 0xFFFFFF);
     DrawRectangle(graphicsBuffer, state->sliderMusicVolume.x, state->sliderMusicVolume.y, state->sliderMusicVolume.width, state->sliderMusicVolume.height, 0xFFFFFF);
+}
+
+// Scene 5: Controls //
+
+static void InitScene5(void) {
+
+}
+
+static void CloseScene5(void) {
+
+}
+
+static void Scene5(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
+    DrawRectangle(graphicsBuffer, 0, 0, 1920, 1080, 0x222222);
 }
 
 

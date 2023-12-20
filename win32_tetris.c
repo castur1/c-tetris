@@ -409,26 +409,36 @@ static void ProcessPendingMessages(HWND window, win32_bitmap* bitmapBuffer, keyb
 
                 if (wasDown != isDown) {
                     switch (message.wParam) {
-                        case VK_UP: {
+                        case VK_UP: 
+                        case 'W': {
                             UpdateKeyboardKey(&keyboardState->up, isDown);
                         } break;
-                        case VK_DOWN: {
+                        case VK_DOWN:
+                        case 'S': {
                             UpdateKeyboardKey(&keyboardState->down, isDown);
                         } break;
-                        case VK_LEFT: {
+                        case VK_LEFT:
+                        case 'A': {
                             UpdateKeyboardKey(&keyboardState->left, isDown);
                         } break;
-                        case VK_RIGHT: {
+                        case VK_RIGHT:
+                        case 'D': {
                             UpdateKeyboardKey(&keyboardState->right, isDown);
                         } break;
-                        case 'Z': {
+                        case 'Z':
+                        case 'J': {
                             UpdateKeyboardKey(&keyboardState->z, isDown);
                         } break;
-                        case 'X': {
+                        case 'X':
+                        case 'K': {
                             UpdateKeyboardKey(&keyboardState->x, isDown);
                         } break;
-                        case 'C': {
+                        case 'C':
+                        case 'L': {
                             UpdateKeyboardKey(&keyboardState->c, isDown);
+                        } break;
+                        case VK_SPACE: {
+                            UpdateKeyboardKey(&keyboardState->spacebar, isDown);
                         } break;
                         case VK_RETURN: {
                             UpdateKeyboardKey(&keyboardState->enter, isDown);
