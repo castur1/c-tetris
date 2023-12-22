@@ -775,6 +775,7 @@ static void Scene1(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
 typedef struct scene2_state {
     button_t buttonStart;
     button_t buttonOptions;
+    button_t buttonControls;
     button_t buttonQuit;
     i32 currentButtonIndex;
 } scene2_state;
@@ -784,6 +785,7 @@ typedef struct scene2_data {
 
     bitmap_buffer buttonStart;
     bitmap_buffer buttonOptions;
+    bitmap_buffer buttonControls;
     bitmap_buffer buttonQuit;
 
     sound_buffer backgroundMusic;
@@ -801,8 +803,9 @@ static void InitScene2(void) {
 
     data->background = LoadBMP("assets/graphics/tetris_background_title2.bmp");
 
-    data->buttonStart   = LoadBMP("assets/graphics/start_game_button.bmp");
+    data->buttonStart   = LoadBMP("assets/graphics/start_game_button2.bmp");
     data->buttonOptions = LoadBMP("assets/graphics/options_button.bmp");
+    data->buttonControls = LoadBMP("assets/graphics/controls_button.bmp");
     data->buttonQuit    = LoadBMP("assets/graphics/quit_game_button.bmp");
 
     data->backgroundMusic = LoadWAV("assets/audio/tetris_theme.wav");
@@ -813,26 +816,34 @@ static void InitScene2(void) {
     PlaySound(&data->backgroundMusic, true, BACKGROUND_MUSIC * g_globalState.saveData.musicVolume, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
 
     state->buttonStart = (button_t){
-        .x      = 830,
-        .y      = 370,
-        .width  = 260,
+        .x      = 790,
+        .y      = 375,
+        .width  = 340,
         .height = 90,
         .state  = button_state_idle
     };
 
     state->buttonOptions = (button_t){
         .x      = 860,
-        .y      = 275,
+        .y      = 290,
         .width  = 200,
-        .height = 90,
+        .height = 80,
+        .state  = button_state_idle
+    };
+
+    state->buttonControls = (button_t){
+        .x      = 855,
+        .y      = 200,
+        .width  = 210,
+        .height = 80,
         .state  = button_state_idle
     };
 
     state->buttonQuit = (button_t){
-        .x      = 840,
-        .y      = 175,
-        .width  = 240,
-        .height = 90,
+        .x      = 835,
+        .y      = 110,
+        .width  = 250,
+        .height = 80,
         .state  = button_state_idle
     };
 
@@ -848,6 +859,7 @@ static void CloseScene2(void) {
 
     EngineFree(data->buttonStart.memory);
     EngineFree(data->buttonOptions.memory);
+    EngineFree(data->buttonControls.memory);
     EngineFree(data->buttonQuit.memory);
 
     EngineFree(data->backgroundMusic.samples);
@@ -866,9 +878,10 @@ static void Scene2(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     scene2_data*  data  = g_sceneData;
 
 
-    UpdateButtonState(&state->buttonStart,   keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
-    UpdateButtonState(&state->buttonOptions, keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
-    UpdateButtonState(&state->buttonQuit,    keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
+    UpdateButtonState(&state->buttonStart,    keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
+    UpdateButtonState(&state->buttonOptions,  keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
+    UpdateButtonState(&state->buttonControls, keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
+    UpdateButtonState(&state->buttonQuit,     keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
 
     i32 initialButtonIndex = state->currentButtonIndex;
 
@@ -878,14 +891,17 @@ static void Scene2(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     else if (state->buttonOptions.state == button_state_hover) {
         state->currentButtonIndex = 1;
     }
-    else if (state->buttonQuit.state == button_state_hover) {
+    else if (state->buttonControls.state == button_state_hover) {
         state->currentButtonIndex = 2;
+    }
+    else if (state->buttonQuit.state == button_state_hover) {
+        state->currentButtonIndex = 3;
     }
 
     if (PRESSED(keyboardState->up) && state->currentButtonIndex != 0) {
         --state->currentButtonIndex;
     }
-    else if (PRESSED(keyboardState->down) && state->currentButtonIndex != 2) {
+    else if (PRESSED(keyboardState->down) && state->currentButtonIndex != 3) {
         ++state->currentButtonIndex;
     }
 
@@ -903,7 +919,14 @@ static void Scene2(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
         return;
     }
 
-    if (state->buttonQuit.state == button_state_pressed || (state->currentButtonIndex == 2 && PRESSED(keyboardState->enter))) {
+    if (state->buttonControls.state == button_state_pressed || (state->currentButtonIndex == 2 && PRESSED(keyboardState->enter))) {
+        CloseScene2();
+        InitScene5();
+        g_globalState.currentScene = &Scene5;
+        return;
+    }
+
+    if (state->buttonQuit.state == button_state_pressed || (state->currentButtonIndex == 3 && PRESSED(keyboardState->enter))) {
         EngineClose();
         return;
     }
@@ -914,9 +937,10 @@ static void Scene2(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
 
     DrawBitmapStupid(graphicsBuffer, &data->background, 0, 0);
 
-    DrawBitmapStupidWithOpacity(graphicsBuffer, &data->buttonStart,   852, 400, 255);
-    DrawBitmapStupidWithOpacity(graphicsBuffer, &data->buttonOptions, 884, 300, 255);
-    DrawBitmapStupidWithOpacity(graphicsBuffer, &data->buttonQuit,    858, 200, 255);
+    DrawBitmapStupidWithOpacity(graphicsBuffer, &data->buttonStart,    812, 400, 255);
+    DrawBitmapStupidWithOpacity(graphicsBuffer, &data->buttonOptions,  884, 310, 255);
+    DrawBitmapStupidWithOpacity(graphicsBuffer, &data->buttonControls, 876, 225, 255);
+    DrawBitmapStupidWithOpacity(graphicsBuffer, &data->buttonQuit,     858, 130, 255);
 
     // Hardcoding values :)
     i32 markerXLeft = 0;
@@ -926,19 +950,24 @@ static void Scene2(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     const u32 markerColour = 0xFFFFFF;
     switch (state->currentButtonIndex) {
         case 0: {
-            markerXLeft = 808;
-            markerXRight = 1088;
-            markerY = 397;
+            markerXLeft = 760;
+            markerXRight = 1160 - 24;
+            markerY = 400;
         } break;
         case 1: {
-            markerXLeft = 840;
-            markerXRight = 1056;
-            markerY = 302;
+            markerXLeft = 835;
+            markerXRight = 1085 - 24;
+            markerY = 312;
         } break;
         case 2: {
-            markerXLeft = 814;
-            markerXRight = 1082;
-            markerY = 200;
+            markerXLeft = 827;
+            markerXRight = 1093 - 24;
+            markerY = 220;
+        } break;
+        case 3: {
+            markerXLeft = 810;
+            markerXRight = 1110 - 24;
+            markerY = 130;
         } break;
     }
     DrawRectangle(graphicsBuffer, markerXLeft, markerY + markerSize, markerSize, markerSize, markerColour);
@@ -1424,12 +1453,30 @@ static void Scene4(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
 
 // Scene 5: Controls //
 
-static void InitScene5(void) {
+typedef struct scene5_state {
+    int placeholder;
+} scene5_state;
 
+typedef struct scene5_data {
+    int placeholder;
+} scene5_data;
+
+static void InitScene5(void) {
+    g_sceneState = EngineAllocate(sizeof(scene5_state));
+    g_sceneData  = EngineAllocate(sizeof(scene5_data));
+
+    scene5_state* state = g_sceneState;
+    scene5_data*  data  = g_sceneData;
+
+
+    StopAllSounds(g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
 }
 
 static void CloseScene5(void) {
-
+    EngineFree(g_sceneState);
+    EngineFree(g_sceneData);
+    g_sceneState = 0;
+    g_sceneData  = 0;
 }
 
 static void Scene5(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
