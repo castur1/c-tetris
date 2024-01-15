@@ -4,6 +4,13 @@
 #include "tetris_random.h"
 
 
+/*
+THINGS TO DO:
+- Finish the controls scene. Everything else is more or less optional
+- Add a death anamiation/screen/whatever after you lose (feedback)
+- Add a license to the GitHub repo. How does that work?
+*/
+
 #define AUDIO_CHANNEL_COUNT 32
 
 #define BOARD_WIDTH  10
@@ -1454,11 +1461,11 @@ static void Scene4(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
 // Scene 5: Controls //
 
 typedef struct scene5_state {
-    int placeholder;
+    button_t buttonBack;
 } scene5_state;
 
 typedef struct scene5_data {
-    int placeholder;
+    bitmap_buffer buttonBack;
 } scene5_data;
 
 static void InitScene5(void) {
@@ -1469,10 +1476,27 @@ static void InitScene5(void) {
     scene5_data*  data  = g_sceneData;
 
 
+    state->buttonBack = (button_t){
+        .x      = 880,
+        .y      = 88,
+        .width  = 160,
+        .height = 90,
+        .state  = button_state_idle
+    };
+
+    data->buttonBack = LoadBMP("assets/graphics/back_button.bmp");
+
     StopAllSounds(g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
 }
 
 static void CloseScene5(void) {
+    scene5_state* state = g_sceneState;
+    scene5_data*  data  = g_sceneData;
+
+
+    EngineFree(data->buttonBack.memory);
+
+
     EngineFree(g_sceneState);
     EngineFree(g_sceneData);
     g_sceneState = 0;
@@ -1480,7 +1504,27 @@ static void CloseScene5(void) {
 }
 
 static void Scene5(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
+    scene5_state* state = g_sceneState;
+    scene5_data*  data  = g_sceneData;
+
+
+    UpdateButtonState(&state->buttonBack, keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
+
+    if (state->buttonBack.state == button_state_pressed || PRESSED(keyboardState->enter)) {
+        CloseScene5();
+        InitScene2();
+        g_globalState.currentScene = &Scene2;
+        return;
+    }
+
     DrawRectangle(graphicsBuffer, 0, 0, 1920, 1080, 0x222222);
+
+    DrawBitmapStupidWithOpacity(graphicsBuffer, &data->buttonBack, 914, 120, 255);
+
+    DrawRectangle(graphicsBuffer, 865, 115 + 12, 12, 12, 0xFFFFFF);
+    DrawRectangle(graphicsBuffer, 865 + 12, 115, 12, 3 * 12, 0xFFFFFF);
+    DrawRectangle(graphicsBuffer, 1030 + 12, 115 + 12, 12, 12, 0xFFFFFF);
+    DrawRectangle(graphicsBuffer, 1030, 115, 12, 3 * 12, 0xFFFFFF);
 }
 
 
