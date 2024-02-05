@@ -457,7 +457,7 @@ static void InitScene1(void) {
     data->tetrominoesUI[6] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_J_UI.bmp");
     data->tetrominoesUI[7] = LoadBMP("assets/graphics/tetrominoes_ui/tetromino_L_UI.bmp");
 
-    data->background = LoadBMP("assets/graphics/background3.bmp");
+    data->background = LoadBMP("assets/graphics/background_gameplay.bmp");
 
     data->buttonPauseUnpaused = LoadBMP("assets/graphics/button_pause_unpaused.bmp");
 
@@ -820,12 +820,12 @@ static void InitScene2(void) {
     scene2_data*  data  = g_sceneData;
 
 
-    data->background = LoadBMP("assets/graphics/tetris_background_title2.bmp");
+    data->background = LoadBMP("assets/graphics/background_title.bmp");
 
-    data->buttonStart   = LoadBMP("assets/graphics/start_game_button2.bmp");
-    data->buttonOptions = LoadBMP("assets/graphics/options_button.bmp");
-    data->buttonControls = LoadBMP("assets/graphics/controls_button.bmp");
-    data->buttonQuit    = LoadBMP("assets/graphics/quit_game_button.bmp");
+    data->buttonStart   = LoadBMP("assets/graphics/button_start.bmp");
+    data->buttonOptions = LoadBMP("assets/graphics/button_options.bmp");
+    data->buttonControls = LoadBMP("assets/graphics/button_controls.bmp");
+    data->buttonQuit    = LoadBMP("assets/graphics/button_quit.bmp");
 
     data->backgroundMusic = LoadWAV("assets/audio/tetris_theme.wav");
 
@@ -1043,7 +1043,7 @@ static void InitScene3(void) {
     data->tetrominoesUI[6] = LoadBMP("assets/graphics/tetrominoes_ui/dim/tetromino_j_ui_dim.bmp");
     data->tetrominoesUI[7] = LoadBMP("assets/graphics/tetrominoes_ui/dim/tetromino_l_ui_dim.bmp");
 
-    data->background = LoadBMP("assets/graphics/background_dim.bmp");
+    data->background = LoadBMP("assets/graphics/background_gameplay_dim.bmp");
 
     data->buttonPausePaused = LoadBMP("assets/graphics/button_pause_paused.bmp");
 
@@ -1250,13 +1250,13 @@ static void InitScene4(void) {
 
     data->background = LoadBMP("assets/graphics/background_options.bmp");
 
-    data->labelMasterVolume = LoadBMP("assets/graphics/master_volume_label.bmp");
-    data->labelSoundVolume  = LoadBMP("assets/graphics/sound_volume_label.bmp");
-    data->labelMusicVolume  = LoadBMP("assets/graphics/music_volume_label.bmp");
+    data->labelMasterVolume = LoadBMP("assets/graphics/label_master_volume.bmp");
+    data->labelSoundVolume  = LoadBMP("assets/graphics/label_sound_volume.bmp");
+    data->labelMusicVolume  = LoadBMP("assets/graphics/label_music_volume.bmp");
 
-    data->buttonResetHighcore = LoadBMP("assets/graphics/reset_highscore_button.bmp");
+    data->buttonResetHighcore = LoadBMP("assets/graphics/button_reset_highscore.bmp");
 
-    data->buttonBack = LoadBMP("assets/graphics/back_button.bmp");
+    data->buttonBack = LoadBMP("assets/graphics/button_back.bmp");
 
     data->backgroundMusic = LoadWAV("assets/audio/tetris_theme.wav");
 
@@ -1508,7 +1508,7 @@ static void InitScene5(void) {
         .state  = button_state_idle
     };
 
-    data->buttonBack = LoadBMP("assets/graphics/back_button.bmp");
+    data->buttonBack = LoadBMP("assets/graphics/button_back.bmp");
 
     data->backgroundMusic = LoadWAV("assets/audio/tetris_theme.wav");
 
@@ -1565,7 +1565,7 @@ static void Scene5(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
 
 
 void OnStartup(void) {
-    g_globalData.font = InitFont("assets/graphics/letters_sprite_sheet2.bmp", 13, 5, "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.-");
+    g_globalData.font = InitFont("assets/graphics/letters_sprite_sheet.bmp", 13, 5, "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,.-");
 
     g_globalState.saveData = ReadSaveData(SAVE_DATA_PATH);
 
