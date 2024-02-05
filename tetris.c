@@ -8,7 +8,15 @@
 THINGS TO DO:
 - Finish the controls scene. Everything else is more or less optional
 - Add a death anamiation/screen/whatever after you lose (feedback)
-- Add a license to the GitHub repo. How does that work?
+- Pressing enter shouldn't be the only way to progress (DONE!)
+- Clean up the code and files
+--- Look through all the comments in the code
+- Update the README.md
+- Upload the game to itch.io and add release to GitHub
+- Controller support? Probably not
+- General polish
+
+3122 lines of code as of writing
 */
 
 #define AUDIO_CHANNEL_COUNT 32
@@ -40,7 +48,7 @@ THINGS TO DO:
 #define SAVE_DATA_PATH "data/data.txt"
 
 
-#define PRESSED(key) (key.isDown && key.didChangeState)
+#define PRESSED(key) ((key).isDown && (key).didChangeState)
 
 
 typedef enum tetromino_type {
@@ -121,6 +129,7 @@ typedef struct save_data {
 typedef struct global_state {
     scene_pointer currentScene;
     audio_channel audioChannels[AUDIO_CHANNEL_COUNT];
+    i32 musicSampleIndex; // Bad solution
 
     save_data saveData;
 } global_state;
@@ -465,6 +474,9 @@ static void InitScene1(void) {
 
     StopAllSounds(g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
     PlaySound(&data->backgroundMusic, true, BACKGROUND_MUSIC * g_globalState.saveData.musicVolume, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
+    if (g_globalState.musicSampleIndex != 0) {
+        SetSampleIndex(g_globalState.musicSampleIndex, 0, g_globalState.audioChannels);
+    }
 
     RandomInit();
 
@@ -821,6 +833,9 @@ static void InitScene2(void) {
 
     StopAllSounds(g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
     PlaySound(&data->backgroundMusic, true, BACKGROUND_MUSIC * g_globalState.saveData.musicVolume, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
+    if (g_globalState.musicSampleIndex != 0) {
+        SetSampleIndex(g_globalState.musicSampleIndex, 0, g_globalState.audioChannels);
+    }
 
     state->buttonStart = (button_t){
         .x      = 790,
@@ -885,6 +900,8 @@ static void Scene2(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     scene2_data*  data  = g_sceneData;
 
 
+    b32 isAnyRelevantKeyPressed = PRESSED(keyboardState->enter) || PRESSED(keyboardState->spacebar) || PRESSED(keyboardState->z) || PRESSED(keyboardState->x) || PRESSED(keyboardState->c);
+
     UpdateButtonState(&state->buttonStart,    keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
     UpdateButtonState(&state->buttonOptions,  keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
     UpdateButtonState(&state->buttonControls, keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
@@ -912,28 +929,28 @@ static void Scene2(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
         ++state->currentButtonIndex;
     }
 
-    if (state->buttonStart.state == button_state_pressed || (state->currentButtonIndex == 0 && PRESSED(keyboardState->enter))) {
+    if (state->buttonStart.state == button_state_pressed || (state->currentButtonIndex == 0 && isAnyRelevantKeyPressed)) {
         CloseScene2();
         InitScene1();
         g_globalState.currentScene = &Scene1;
         return;
     }
 
-    if (state->buttonOptions.state == button_state_pressed || (state->currentButtonIndex == 1 && PRESSED(keyboardState->enter))) {
+    if (state->buttonOptions.state == button_state_pressed || (state->currentButtonIndex == 1 && isAnyRelevantKeyPressed)) {
         CloseScene2();
         InitScene4();
         g_globalState.currentScene = &Scene4;
         return;
     }
 
-    if (state->buttonControls.state == button_state_pressed || (state->currentButtonIndex == 2 && PRESSED(keyboardState->enter))) {
+    if (state->buttonControls.state == button_state_pressed || (state->currentButtonIndex == 2 && isAnyRelevantKeyPressed)) {
         CloseScene2();
         InitScene5();
         g_globalState.currentScene = &Scene5;
         return;
     }
 
-    if (state->buttonQuit.state == button_state_pressed || (state->currentButtonIndex == 3 && PRESSED(keyboardState->enter))) {
+    if (state->buttonQuit.state == button_state_pressed || (state->currentButtonIndex == 3 && isAnyRelevantKeyPressed)) {
         EngineClose();
         return;
     }
@@ -1246,8 +1263,10 @@ static void InitScene4(void) {
     data->sfxButtonSwitch = LoadWAV("assets/audio/sfx1.wav");
 
     StopAllSounds(g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
-
     PlaySound(&data->backgroundMusic, true, BACKGROUND_MUSIC * g_globalState.saveData.musicVolume, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
+    if (g_globalState.musicSampleIndex != 0) {
+        SetSampleIndex(g_globalState.musicSampleIndex, 0, g_globalState.audioChannels);
+    }
 }
 
 static void CloseScene4(void) {
@@ -1279,13 +1298,12 @@ static void CloseScene4(void) {
     g_sceneData  = 0;
 }
 
-// Add drop shadow to text?
-// Full screen button
-// Better indicators (like main men scene)
-
 static void Scene4(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_state* keyboardState, f32 deltaTime) {
     scene4_state* state = g_sceneState;
     scene4_data*  data  = g_sceneData;
+
+
+    b32 isAnyRelevantKeyPressed = PRESSED(keyboardState->enter) || PRESSED(keyboardState->spacebar) || PRESSED(keyboardState->z) || PRESSED(keyboardState->x) || PRESSED(keyboardState->c);
 
     if (state->sliderMasterVolume.state == button_state_held) {
         state->sliderMasterVolume.x = keyboardState->mouseX - state->sliderMasterVolume.width / 2;
@@ -1357,11 +1375,11 @@ static void Scene4(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
         ++state->currentSelectedIndex;
     }
 
-    if (state->buttonResetHighscore.state == button_state_pressed || (state->currentSelectedIndex == 3 && PRESSED(keyboardState->enter))) {
+    if (state->buttonResetHighscore.state == button_state_pressed || (state->currentSelectedIndex == 3 && isAnyRelevantKeyPressed)) {
         g_globalState.saveData.highScore = 0;
     }
 
-    if (state->buttonBack.state == button_state_pressed || (state->currentSelectedIndex == 4 && PRESSED(keyboardState->enter))) {
+    if (state->buttonBack.state == button_state_pressed || (state->currentSelectedIndex == 4 && isAnyRelevantKeyPressed)) {
         CloseScene4();
         InitScene2();
         g_globalState.currentScene = &Scene2;
@@ -1465,7 +1483,11 @@ typedef struct scene5_state {
 } scene5_state;
 
 typedef struct scene5_data {
+    bitmap_buffer background;
+
     bitmap_buffer buttonBack;
+
+    sound_buffer backgroundMusic;
 } scene5_data;
 
 static void InitScene5(void) {
@@ -1475,6 +1497,8 @@ static void InitScene5(void) {
     scene5_state* state = g_sceneState;
     scene5_data*  data  = g_sceneData;
 
+
+    data->background = LoadBMP("assets/graphics/background_controls.bmp");
 
     state->buttonBack = (button_t){
         .x      = 880,
@@ -1486,7 +1510,13 @@ static void InitScene5(void) {
 
     data->buttonBack = LoadBMP("assets/graphics/back_button.bmp");
 
+    data->backgroundMusic = LoadWAV("assets/audio/tetris_theme.wav");
+
     StopAllSounds(g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
+    PlaySound(&data->backgroundMusic, true, BACKGROUND_MUSIC * g_globalState.saveData.musicVolume, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT);
+    if (g_globalState.musicSampleIndex != 0) {
+        SetSampleIndex(g_globalState.musicSampleIndex, 0, g_globalState.audioChannels);
+    }
 }
 
 static void CloseScene5(void) {
@@ -1494,7 +1524,11 @@ static void CloseScene5(void) {
     scene5_data*  data  = g_sceneData;
 
 
+    EngineFree(data->background.memory);
+
     EngineFree(data->buttonBack.memory);
+
+    EngineFree(data->backgroundMusic.samples);
 
 
     EngineFree(g_sceneState);
@@ -1508,16 +1542,18 @@ static void Scene5(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, key
     scene5_data*  data  = g_sceneData;
 
 
+    b32 isAnyRelevantKeyPressed = PRESSED(keyboardState->enter) || PRESSED(keyboardState->spacebar) || PRESSED(keyboardState->z) || PRESSED(keyboardState->x) || PRESSED(keyboardState->c);
+
     UpdateButtonState(&state->buttonBack, keyboardState->mouseX, keyboardState->mouseY, &keyboardState->mouseLeft);
 
-    if (state->buttonBack.state == button_state_pressed || PRESSED(keyboardState->enter)) {
+    if (state->buttonBack.state == button_state_pressed || isAnyRelevantKeyPressed) {
         CloseScene5();
         InitScene2();
         g_globalState.currentScene = &Scene2;
         return;
     }
 
-    DrawRectangle(graphicsBuffer, 0, 0, 1920, 1080, 0x222222);
+    DrawBitmapStupid(graphicsBuffer, &data->background, 0, 0);
 
     DrawBitmapStupidWithOpacity(graphicsBuffer, &data->buttonBack, 914, 120, 255);
 
@@ -1553,6 +1589,8 @@ void Update(bitmap_buffer* graphicsBuffer, sound_buffer* soundBuffer, keyboard_s
             break;
         }
     }
+
+    g_globalState.musicSampleIndex = g_globalState.audioChannels[0].sampleIndex;
 
     (*g_globalState.currentScene)(graphicsBuffer, soundBuffer, keyboardState, deltaTime);
     ProcessSound(soundBuffer, g_globalState.audioChannels, AUDIO_CHANNEL_COUNT, g_globalState.saveData.masterVolume);

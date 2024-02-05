@@ -5,12 +5,9 @@
 #pragma comment(lib, "winmm.lib")  // Perhaps I should just add these to additional dependencies instead?
 #pragma comment(lib, "dsound.lib") // ...Like, for compatability reasons and stuff
 
-// Debug / testing
+// Debug / testing. Remove!
 #include <stdio.h>
 #include <math.h>
-
-#include <intrin.h>
-
 
 typedef struct win32_bitmap {
     BITMAPINFO info;
